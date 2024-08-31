@@ -1,0 +1,10 @@
+[workspace]
+members = [
+    "pure-audio",
+    "pure-audio-wasm"
+]
+exclude = [
+    "examples/gain",
+    "examples/gain-web"
+]
+resolver = "2"
