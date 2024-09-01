@@ -1,10 +1,11 @@
 use std::marker::PhantomData;
 use pure_audio::{EffectAudioData, FromParameters, InputBuffer, InstrumentAudioData, OutputBuffer, ParameterDescriptor};
 use wasm_bindgen::prelude::*;
-use crate::PROCESSOR_BLOCK_LENGTH;
+use web_sys::AudioWorkletNode;
+use crate::{InstrumentAudioWorkletNode, WasmAudioWorkletNode, PROCESSOR_BLOCK_LENGTH};
 
 pub trait WasmProcessor {
-    fn pack(self) -> usize;
+    type AudioWorkletNodeType: WasmAudioWorkletNode;
 }
 
 #[wasm_bindgen]
@@ -21,17 +22,11 @@ impl WasmEffectProcessor {
 }
 
 impl WasmProcessor for WasmEffectProcessor {
-    fn pack(self) -> usize {
-        Box::into_raw(Box::new(self)) as usize
-    }
+    type AudioWorkletNodeType = AudioWorkletNode;
 }
 
 #[wasm_bindgen]
-impl WasmEffectProcessor {
-    pub unsafe fn unpack(ptr: usize) -> Self {
-        *Box::from_raw(ptr as *mut _)
-    }
-    
+impl WasmEffectProcessor {    
     pub fn get_inputs_ptr(&mut self) -> usize {
         self.implementation.get_inputs_ptr()
     }
@@ -63,17 +58,11 @@ impl WasmInstrumentProcessor {
 }
 
 impl WasmProcessor for WasmInstrumentProcessor {
-    fn pack(self) -> usize {
-        Box::into_raw(Box::new(self)) as usize
-    }
+    type AudioWorkletNodeType = InstrumentAudioWorkletNode;
 }
 
 #[wasm_bindgen]
-impl WasmInstrumentProcessor {
-    pub unsafe fn unpack(ptr: usize) -> Self {
-        *Box::from_raw(ptr as *mut _)
-    }
-    
+impl WasmInstrumentProcessor {    
     pub fn get_inputs_ptr(&mut self) -> usize {
         self.implementation.get_inputs_ptr()
     }

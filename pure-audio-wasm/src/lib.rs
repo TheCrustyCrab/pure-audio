@@ -1,8 +1,10 @@
+mod audio_worklet_node;
 mod es_module;
 mod loader;
 mod processor;
 
 // re-export
+pub use audio_worklet_node::*;
 pub use loader::*;
 pub use processor::*;
 

@@ -5,6 +5,8 @@ members = [
 ]
 exclude = [
     "examples/gain",
-    "examples/gain-web"
+    "examples/gain-web",
+    "examples/oscillator",
+    "examples/oscillator-web"
 ]
 resolver = "2"
