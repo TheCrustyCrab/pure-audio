@@ -1,2 +1,3 @@
 /target
-/web_dynamic
+/web_dynamic/*
+!/web_dynamic/index.html

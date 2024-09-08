@@ -1,0 +1,24 @@
+<html>
+    <head></head>
+    <body>
+        <script type="module">
+            import init, { create_gain_node } from "./gain_loader.js";
+
+            async function run() {
+                document.body.removeEventListener("click", run);
+
+                await init({ module_or_path: "gain_loader_bg.wasm" });
+                const ctx = new AudioContext();
+                const gain = await create_gain_node(ctx);
+                const tone = new OscillatorNode(ctx, {
+                    frequency: 440
+                });
+                tone.start();
+                tone.connect(gain);
+                gain.connect(ctx.destination);
+            }
+
+            document.body.addEventListener("click", run);
+        </script>
+    </body>
+</html>

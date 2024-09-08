@@ -1,4 +1,4 @@
-use crate::{audio_worklet_node::WasmAudioWorkletNode, es_module::{ImportMeta, IMPORT_META}, IntoWasmProcessor, WasmProcessor, PROCESSOR_BLOCK_LENGTH};
+use crate::{audio_worklet_node::WasmAudioWorkletNode, es_module::{ImportMeta, IMPORT_META}, IntoWasmProcessor, PROCESSOR_BLOCK_LENGTH};
 use js_sys::{Array, Promise, Reflect, WebAssembly};
 use pure_audio::ParameterDescriptor;
 use wasm_bindgen::{JsCast, JsValue};
@@ -105,6 +105,11 @@ where
                     console.log("Audio thread received message: ");
                     console.log(msg);
                     this.port.postMessage("hello from audio thread!");
+                    if (msg.data.type === "noteOn") {{
+                        this.processor.note_on();
+                    }} else if (msg.data.type === "noteOff") {{
+                        this.processor.note_off();
+                    }}
                 }};
                 const [module, sampleRate] = options.processorOptions;
                 const {{ memory }} = initSync({{ module }});

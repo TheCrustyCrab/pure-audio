@@ -1,4 +1,4 @@
-use crate::buffer::{InputBuffer, OutputBuffer};
+use crate::{buffer::{InputBuffer, OutputBuffer}, event::Event};
 
 const DEFAULT_BLOCK_SIZE: usize = 128;
 
@@ -23,6 +23,7 @@ pub struct InstrumentAudioData<
     const BLOCK_SIZE: usize = DEFAULT_BLOCK_SIZE,
     S = (),
 > {
+    pub events: &'a [Event],
     pub outputs: OutputBuffer<'a, NUM_OUTPUTS, NUM_CHANNELS, BLOCK_SIZE>,
     pub sample_rate: f32,
     pub state: &'a mut S,

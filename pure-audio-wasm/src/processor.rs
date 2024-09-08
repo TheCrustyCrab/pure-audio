@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use pure_audio::{IntoProcessor, ParameterDescriptor, Processor};
+use pure_audio::{Event, IntoProcessor, ParameterDescriptor, Processor};
 use wasm_bindgen::prelude::*;
 use web_sys::AudioWorkletNode;
 use crate::{InstrumentAudioWorkletNode, WasmAudioWorkletNode, PROCESSOR_BLOCK_LENGTH};
@@ -31,8 +31,16 @@ impl WasmProcessor {
         self.implementation.get_parameters_ptr()
     }
 
-    pub unsafe fn process(&mut self) {
+    pub fn process(&mut self) {
         self.implementation.process();
+    }
+
+    pub fn note_on(&mut self) {
+        self.implementation.note_on();
+    }
+
+    pub fn note_off(&mut self) {
+        self.implementation.note_off();
     }
 }
 
@@ -41,10 +49,13 @@ pub trait WasmProcessorImplementation: 'static {
     fn get_outputs_ptr(&self) -> usize;
     fn get_parameters_ptr(&mut self) -> usize;
     fn process(&mut self);
+    fn note_on(&mut self);
+    fn note_off(&mut self);
 }
 
 struct WasmProcessorWrapper<P, const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params> {
     processor: P,
+    events: Vec<Event>,
     inputs: [[[f32; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_INPUTS],
     outputs: [[[f32; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_OUTPUTS],
     parameters: [f32; NUM_PARAMS],
@@ -56,6 +67,7 @@ impl<P, const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const NUM_OUTPUTS: u
     fn new(processor: P) -> Self {
         Self {
             processor,
+            events: vec![],
             inputs: [[[0.0; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_INPUTS],
             outputs: [[[0.0; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_OUTPUTS],
             parameters: [0.0; NUM_PARAMS],
@@ -109,7 +121,18 @@ where
     }
 
     fn process(&mut self) {
-        self.processor.process(&self.inputs, &mut self.outputs, &self.parameters)    
+        // clear outputs
+        self.outputs = [[[0.0; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_OUTPUTS];
+        self.processor.process(&self.inputs, &mut self.outputs, &self.parameters, &self.events);
+        self.events.clear();
+    }
+
+    fn note_on(&mut self) {
+        self.events.push(Event::NoteOn);
+    }
+
+    fn note_off(&mut self) {
+        self.events.push(Event::NoteOff);
     }
 }
 

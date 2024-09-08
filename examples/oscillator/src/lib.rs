@@ -13,6 +13,7 @@ impl ProcessorParameter for OscillatorFrequencyParameter {
         name: "Frequency",
     };
 
+    #[inline]
     fn from_parameter(value: f32) -> Self {
         OscillatorFrequencyParameter(value)
     }
@@ -26,12 +27,24 @@ pub struct OscillatorState {
 
 pub fn process(
     InstrumentAudioData {
+        events,
         outputs: OutputBuffer([[output]]),
         sample_rate,
         state: OscillatorState { accumulator, active },
     }: InstrumentAudioData<1, 1, 128, OscillatorState>,
     frequency: OscillatorFrequencyParameter,
 ) {
+    for event in events {
+        match event {
+            pure_audio::Event::NoteOn => *active = true,
+            pure_audio::Event::NoteOff => *active = false,
+        }
+    }
+
+    if !*active {
+        return;
+    }
+
     for sample in output {
         *accumulator = accumulator.wrapping_add((frequency.0 / sample_rate * 10000.0) as u32);
         *sample = (TAU * *accumulator as f32 / 10000.0).sin();

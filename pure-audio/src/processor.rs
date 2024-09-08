@@ -1,6 +1,5 @@
 use crate::{
-    EffectAudioData, FromParameters, InputBuffer, InstrumentAudioData, OutputBuffer,
-    ParameterDescriptor,
+    event::Event, EffectAudioData, FromParameters, InputBuffer, InstrumentAudioData, OutputBuffer, ParameterDescriptor
 };
 use std::marker::PhantomData;
 
@@ -19,6 +18,7 @@ pub trait Processor<
         inputs: &[[[f32; BLOCK_SIZE]; NUM_CHANNELS]; NUM_INPUTS],
         outputs: &mut [[[f32; BLOCK_SIZE]; NUM_CHANNELS]; NUM_OUTPUTS],
         parameters: &[f32; NUM_PARAMS],
+        events: &[Event]
     ) {
     }
 }
@@ -122,6 +122,7 @@ where
         inputs: &[[[f32; BLOCK_SIZE]; NUM_CHANNELS]; NUM_INPUTS],
         outputs: &mut [[[f32; BLOCK_SIZE]; NUM_CHANNELS]; NUM_OUTPUTS],
         parameters: &[f32; 1],
+        events: &[Event]
     ) {
         let p1 = P1::from_parameters(parameters, 0);
         let data = EffectAudioData {
@@ -195,6 +196,7 @@ where
         inputs: &[[[f32; BLOCK_SIZE]; NUM_CHANNELS]; NUM_INPUTS],
         outputs: &mut [[[f32; BLOCK_SIZE]; NUM_CHANNELS]; NUM_OUTPUTS],
         parameters: &[f32; 2],
+        events: &[Event]
     ) {
         let p1 = P1::from_parameters(parameters, 0);
         let p2 = P2::from_parameters(parameters, 1);
@@ -252,9 +254,11 @@ where
         _inputs: &[[[f32; BLOCK_SIZE]; NUM_CHANNELS]; 0],
         outputs: &mut [[[f32; BLOCK_SIZE]; NUM_CHANNELS]; NUM_OUTPUTS],
         parameters: &[f32; 1],
+        events: &[Event]
     ) {
         let p1 = P1::from_parameters(parameters, 0);
         let data = InstrumentAudioData {
+            events,
             outputs: OutputBuffer::new(outputs),
             sample_rate: self.sample_rate,
             state: &mut self.state,
@@ -305,10 +309,12 @@ where
         _inputs: &[[[f32; BLOCK_SIZE]; NUM_CHANNELS]; 0],
         outputs: &mut [[[f32; BLOCK_SIZE]; NUM_CHANNELS]; NUM_OUTPUTS],
         parameters: &[f32; 2],
+        events: &[Event]
     ) {
         let p1 = P1::from_parameters(parameters, 0);
         let p2 = P2::from_parameters(parameters, 1);
         let data = InstrumentAudioData {
+            events,
             outputs: OutputBuffer::new(outputs),
             sample_rate: self.sample_rate,
             state: &mut self.state,

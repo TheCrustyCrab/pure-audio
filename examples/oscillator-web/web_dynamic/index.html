@@ -1,0 +1,30 @@
+<html>
+    <head></head>
+    <body>
+        <button id="playButton">Play</button>
+        <input id="frequencySlider" type="range" min="20" max="2000" step="20" value="440"/>        
+        <script type="module">
+            import init, { create_oscillator_node } from "./oscillator_loader.js";
+
+            async function run() {
+                document.body.removeEventListener("click", run);
+
+                await init({ module_or_path: "oscillator_loader_bg.wasm" });
+                const ctx = new AudioContext();
+                const oscillator = await create_oscillator_node(ctx);
+                oscillator.connect(ctx.destination);
+                document.getElementById("playButton").addEventListener("mousedown", () => {
+                    oscillator.noteOn();
+                });
+                document.getElementById("playButton").addEventListener("mouseup", () => {
+                    oscillator.noteOff();
+                });
+                document.getElementById("frequencySlider").addEventListener("change", evt => {
+                    oscillator.parameters.get("Frequency").value = parseFloat(evt.target.value);
+                });
+            }
+
+            document.body.addEventListener("click", run);
+        </script>
+    </body>
+</html>
