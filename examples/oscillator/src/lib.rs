@@ -33,7 +33,7 @@ pub fn process(
     frequency: OscillatorFrequencyParameter,
 ) {
     for sample in output {
-        *accumulator = accumulator.wrapping_add((frequency.0 / sample_rate * 1000.0) as u32);
-        *sample = (TAU * *accumulator as f32 / 1000.0).sin();
+        *accumulator = accumulator.wrapping_add((frequency.0 / sample_rate * 10000.0) as u32);
+        *sample = (TAU * *accumulator as f32 / 10000.0).sin();
     }
 }

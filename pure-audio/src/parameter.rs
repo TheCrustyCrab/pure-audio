@@ -37,6 +37,7 @@ pub trait ProcessorParameter {
 impl<P: ProcessorParameter> FromParameters for P {
     const DESCRIPTOR: ParameterDescriptor = P::DESCRIPTOR;
 
+    #[inline]
     fn from_parameters(parameters: &[f32], index: usize) -> Self {
         P::from_parameter(parameters[index])
     }    

@@ -7,9 +7,11 @@ use web_sys::{AudioContext, AudioWorkletNodeOptions, Blob, BlobPropertyBag, Requ
 
 const AUDIO_CONTEXT_REGISTERED_MODULES_FIELD_NAME: &'static str = "registeredModules";
 
-pub async fn register_and_create_node<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, P: WasmProcessor, S>(name: &str, 
-    process: impl IntoWasmProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, P, S>, ctx: &AudioContext)
--> Result<P::AudioWorkletNodeType, JsValue>
+pub async fn register_and_create_node<const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S, F>(name: &str, 
+    process: F, ctx: &AudioContext)
+-> Result<F::AudioWorkletNodeType, JsValue>
+where
+    F: IntoWasmProcessor<IS_INSTRUMENT, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>
 {
     let registered_modules = {
         if let Ok(registered_modules) = Reflect::get(ctx, &AUDIO_CONTEXT_REGISTERED_MODULES_FIELD_NAME.into()).and_then(JsCast::dyn_into::<Array>) {
@@ -29,10 +31,10 @@ pub async fn register_and_create_node<const NUM_INPUTS: usize, const NUM_OUTPUTS
     create_node(name, &process, ctx).await
 }
 
-async fn register_node<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, F, Params, P: WasmProcessor, S>(
+async fn register_node<const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, F, Params, S>(
     name: &str, _process: &F, ctx: &AudioContext) -> Result<(), JsValue>
 where
-    F: IntoWasmProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, P, S>
+    F: IntoWasmProcessor<IS_INSTRUMENT, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>
 {
     let meta_url: String = IMPORT_META.with(ImportMeta::url).into();
     let mut parts = meta_url.split("/").collect::<Vec<_>>();
@@ -143,13 +145,13 @@ where
     Ok(())
 }
 
-async fn create_node<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, F, Params, P: WasmProcessor, S>(
+async fn create_node<const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, F, Params, S>(
     name: &str,
     _process: &F,
     ctx: &AudioContext)
--> Result<P::AudioWorkletNodeType, JsValue>
+-> Result<F::AudioWorkletNodeType, JsValue>
 where
-    F: IntoWasmProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, P, S>
+    F: IntoWasmProcessor<IS_INSTRUMENT, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>
 {
     let mut options = AudioWorkletNodeOptions::new();
     let response = fetch(&format!("{name}_bg.wasm")).await.unwrap();
@@ -160,7 +162,7 @@ where
     options.processor_options(Some(
         &Array::of2(&module, &ctx.sample_rate().into())
     ));
-    P::AudioWorkletNodeType::new_with_options(&ctx, name, &options)
+    F::AudioWorkletNodeType::new_with_options(&ctx, name, &options)
 }
 
 async fn fetch(url: &str) -> Result<Promise, JsValue> {

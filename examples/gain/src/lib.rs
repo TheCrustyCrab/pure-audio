@@ -13,6 +13,7 @@ impl ProcessorParameter for GainVolumeParameter {
         name: "Volume",
     };
 
+    #[inline]
     fn from_parameter(value: f32) -> Self {
         GainVolumeParameter(value)
     }
