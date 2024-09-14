@@ -35,12 +35,12 @@ impl WasmProcessor {
         self.implementation.process();
     }
 
-    pub fn note_on(&mut self) {
-        self.implementation.note_on();
+    pub fn note_on(&mut self, key: u8) {
+        self.implementation.note_on(key);
     }
 
-    pub fn note_off(&mut self) {
-        self.implementation.note_off();
+    pub fn note_off(&mut self, key: u8) {
+        self.implementation.note_off(key);
     }
 }
 
@@ -49,8 +49,8 @@ pub trait WasmProcessorImplementation: 'static {
     fn get_outputs_ptr(&self) -> usize;
     fn get_parameters_ptr(&mut self) -> usize;
     fn process(&mut self);
-    fn note_on(&mut self);
-    fn note_off(&mut self);
+    fn note_on(&mut self, key: u8);
+    fn note_off(&mut self, key: u8);
 }
 
 struct WasmProcessorWrapper<P, const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params> {
@@ -127,12 +127,12 @@ where
         self.events.clear();
     }
 
-    fn note_on(&mut self) {
-        self.events.push(Event::NoteOn);
+    fn note_on(&mut self, key: u8) {
+        self.events.push(Event::NoteOn { key });
     }
 
-    fn note_off(&mut self) {
-        self.events.push(Event::NoteOff);
+    fn note_off(&mut self, key: u8) {
+        self.events.push(Event::NoteOff { key });
     }
 }
 

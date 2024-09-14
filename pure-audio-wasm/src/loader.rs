@@ -106,9 +106,9 @@ where
                     console.log(msg);
                     this.port.postMessage("hello from audio thread!");
                     if (msg.data.type === "noteOn") {{
-                        this.processor.note_on();
+                        this.processor.note_on(msg.data.data.key);
                     }} else if (msg.data.type === "noteOff") {{
-                        this.processor.note_off();
+                        this.processor.note_off(msg.data.data.key);
                     }}
                 }};
                 const [module, sampleRate] = options.processorOptions;

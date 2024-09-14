@@ -239,6 +239,50 @@ where
     }
 }
 
+// instrument with 0 parameters
+impl<F, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const BLOCK_SIZE: usize, S>
+    Processor<true, 0, NUM_OUTPUTS, NUM_CHANNELS, BLOCK_SIZE, 0, ()>
+    for ProcessorWrapper<F, true, 0, NUM_OUTPUTS, NUM_CHANNELS, BLOCK_SIZE, 0, (), S>
+where 
+    F: 'static + FnMut(InstrumentAudioData<NUM_OUTPUTS, NUM_CHANNELS, BLOCK_SIZE, S>),
+    S: 'static + Default
+{
+    #[inline]
+    fn process(
+        &mut self,
+        _inputs: &[[[f32; BLOCK_SIZE]; NUM_CHANNELS]; 0],
+        outputs: &mut [[[f32; BLOCK_SIZE]; NUM_CHANNELS]; NUM_OUTPUTS],
+        _parameters: &[f32; 0],
+        events: &[Event]
+    ) {
+        let data = InstrumentAudioData {
+            events,
+            outputs: OutputBuffer::new(outputs),
+            sample_rate: self.sample_rate,
+            state: &mut self.state
+        };
+        (self.f)(data)
+    }
+}
+
+impl<F, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const BLOCK_SIZE: usize, S>
+    IntoProcessor<true, 0, NUM_OUTPUTS, NUM_CHANNELS, BLOCK_SIZE, 0, (), S> for F
+where
+    F: 'static + FnMut(InstrumentAudioData<NUM_OUTPUTS, NUM_CHANNELS, BLOCK_SIZE, S>),
+    S: 'static + Default,
+{
+    fn get_parameter_descriptors() -> [ParameterDescriptor; 0] {
+        []
+    }
+
+    fn into_processor(
+        self,
+        sample_rate: f32,
+    ) -> impl Processor<true, 0, NUM_OUTPUTS, NUM_CHANNELS, BLOCK_SIZE, 0, ()> {
+        ProcessorWrapper::new(self, sample_rate, S::default())
+    }
+}
+
 // instrument with 1 parameter
 impl<F, P1, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const BLOCK_SIZE: usize, S>
     Processor<true, 0, NUM_OUTPUTS, NUM_CHANNELS, BLOCK_SIZE, 1, (P1,)>

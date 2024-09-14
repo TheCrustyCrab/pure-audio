@@ -1,4 +1,4 @@
 pub enum Event {
-    NoteOn,
-    NoteOff
+    NoteOn { key: u8 },
+    NoteOff { key: u8 }
 }

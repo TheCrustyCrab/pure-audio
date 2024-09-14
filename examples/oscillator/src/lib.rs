@@ -1,28 +1,14 @@
-use std::f32::consts::TAU;
-use pure_audio::{InstrumentAudioData, OutputBuffer, ParameterAutomationRate, ParameterDescriptor, ProcessorParameter};
+use std::{collections::HashMap, f32::consts::TAU};
+use pure_audio::{InstrumentAudioData, OutputBuffer};
 
-#[derive(Copy, Clone)]
-pub struct OscillatorFrequencyParameter(f32);
-
-impl ProcessorParameter for OscillatorFrequencyParameter {
-    const DESCRIPTOR: ParameterDescriptor = ParameterDescriptor {
-        automation_rate: ParameterAutomationRate::K,
-        default_value: 440.0,
-        max_value: 2000.0,
-        min_value: 20.0,
-        name: "Frequency",
-    };
-
-    #[inline]
-    fn from_parameter(value: f32) -> Self {
-        OscillatorFrequencyParameter(value)
-    }
+struct Voice {
+    phase: u32
 }
 
 #[derive(Default)]
 pub struct OscillatorState {
-    accumulator: u32,
-    active: bool
+    active: bool,
+    voices: HashMap<u8, Voice>
 }
 
 pub fn process(
@@ -30,14 +16,19 @@ pub fn process(
         events,
         outputs: OutputBuffer([[output]]),
         sample_rate,
-        state: OscillatorState { accumulator, active },
-    }: InstrumentAudioData<1, 1, 128, OscillatorState>,
-    frequency: OscillatorFrequencyParameter,
+        state: OscillatorState { active, voices },
+    }: InstrumentAudioData<1, 1, 128, OscillatorState>
 ) {
     for event in events {
         match event {
-            pure_audio::Event::NoteOn => *active = true,
-            pure_audio::Event::NoteOff => *active = false,
+            pure_audio::Event::NoteOn { key } => {
+                *active = true;
+                voices.insert(*key, Voice { phase: 0 });
+            },
+            pure_audio::Event::NoteOff { key } => {
+                *active = false;
+                voices.remove(key);
+            },
         }
     }
 
@@ -46,7 +37,13 @@ pub fn process(
     }
 
     for sample in output {
-        *accumulator = accumulator.wrapping_add((frequency.0 / sample_rate * 10000.0) as u32);
-        *sample = (TAU * *accumulator as f32 / 10000.0).sin();
+        let mut sum = 0.0;
+        let gain_per_voice = 1.0 / voices.len() as f32;
+        for (key, Voice { phase }) in voices.iter_mut() {
+            let freq = 440.0 * 2f32.powf((*key as f32 - 57.0) / 12.0);
+            *phase = phase.wrapping_add((freq / sample_rate * 10000.0) as u32);
+            sum += (TAU * *phase as f32 / 10000.0).sin() * gain_per_voice;
+        }
+        *sample = sum;
     }
 }

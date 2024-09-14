@@ -2,6 +2,9 @@
     <head></head>
     <body>
         <button id="playButton">Play</button>
+        Note index:
+        <input id="note1Index" type="number" value="57">
+        <input id="note2Index" type="number" value="64">
         <input id="frequencySlider" type="range" min="20" max="2000" step="20" value="440"/>        
         <script type="module">
             import init, { create_oscillator_node } from "./oscillator_loader.js";
@@ -14,10 +17,12 @@
                 const oscillator = await create_oscillator_node(ctx);
                 oscillator.connect(ctx.destination);
                 document.getElementById("playButton").addEventListener("mousedown", () => {
-                    oscillator.noteOn();
+                    oscillator.noteOn(parseInt(document.getElementById("note1Index").value));
+                    oscillator.noteOn(parseInt(document.getElementById("note2Index").value));
                 });
                 document.getElementById("playButton").addEventListener("mouseup", () => {
-                    oscillator.noteOff();
+                    oscillator.noteOff(parseInt(document.getElementById("note1Index").value));
+                    oscillator.noteOff(parseInt(document.getElementById("note2Index").value));
                 });
                 document.getElementById("frequencySlider").addEventListener("change", evt => {
                     oscillator.parameters.get("Frequency").value = parseFloat(evt.target.value);
