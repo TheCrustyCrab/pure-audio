@@ -16,7 +16,7 @@ jobs:
             - uses: cargo-bins/cargo-binstall@main
 
             - name: Install wasm-bindgen-cli
-              run: cargo binstall wasm-bindgen-cli@0.2.93
+              run: cargo binstall wasm-bindgen-cli@0.2.93 --no-confirm
 
             - name: Build oscillator example
               working-directory: examples/oscillator-web
