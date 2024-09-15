@@ -12,3 +12,21 @@ jobs:
 
             - name: Build workspace
               run: cargo build
+
+            - uses: cargo-bins/cargo-binstall@main
+
+            - name: Install wasm-bindgen-cli
+              run: cargo binstall wasm-bindgen-cli@0.2.93
+
+            - name: Build oscillator example
+              working-directory: examples/oscillator-web
+              run: |
+                cargo build --target wasm32-unknown-unknown --features build_processor --release
+                wasm-bindgen target/wasm32-unknown-unknown/release/oscillator_web.wasm --target web --out-dir web_dynamic --out-name oscillator --no-typescript
+                cargo build --target wasm32-unknown-unknown --release
+                wasm-bindgen target/wasm32-unknown-unknown/release/oscillator_web.wasm --target web --out-dir web_dynamic --out-name oscillator_loader
+
+            - uses: actions/upload-artifact@main
+              with:
+                name: dist
+                path: examples/oscillator-web/web_dynamic
