@@ -1,21 +1,21 @@
 export class InstrumentAudioWorkletNode extends AudioWorkletNode {
-    noteOn(key) {
+    noteOn(key, velocity) {
         this.port.postMessage({
             type: "noteOn",
             data: {
-                key
+                key,
+                velocity
             }
-            // todo: channel, ...
         });
     }
 
-    noteOff(key) {
+    noteOff(key, velocity) {
         this.port.postMessage({
             type: "noteOff",
             data: {
-                key
+                key,
+                velocity
             }
-            // todo: channel, ...
         });
     }
 }

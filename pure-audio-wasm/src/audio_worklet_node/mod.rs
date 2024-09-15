@@ -4,8 +4,8 @@ use web_sys::{AudioWorkletNode, AudioWorkletNodeOptions, BaseAudioContext, Event
 #[wasm_bindgen(typescript_custom_section)]
 const TS_INSTRUMENT_AUDIO_WORKLET_NODE: &'static str = r#"
     export class InstrumentAudioWorkletNode extends AudioWorkletNode {
-        noteOn(): void;
-        noteOff(): void;
+        noteOn(key: number, velocity: number): void;
+        noteOff(key: number, velocity: number): void;
     }
     "#;
 

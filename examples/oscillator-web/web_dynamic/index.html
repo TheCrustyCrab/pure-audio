@@ -1,35 +1,46 @@
 <html>
-    <head></head>
-    <body>
-        <button id="playButton">Play</button>
+<head></head>
+<body>
+    <div>
         Note index:
         <input id="note1Index" type="number" value="57">
         <input id="note2Index" type="number" value="64">
-        <input id="frequencySlider" type="range" min="20" max="2000" step="20" value="440"/>        
-        <script type="module">
-            import init, { create_oscillator_node } from "./oscillator_loader.js";
+    </div>
+    <div>
+        Note index:
+        <input id="note1Velocity" type="range" min="0" max="127" step="1" value="127"/>
+        <input id="note2Velocity" type="range" min="0" max="127" step="1" value="127"/>
+    </div>
+    <button id="playButton">Play</button>
+    <script type="module">
+        import init, { create_oscillator_node } from "./oscillator_loader.js";
 
-            async function run() {
-                document.body.removeEventListener("click", run);
+        async function run() {
+            document.body.removeEventListener("click", run);
 
-                await init({ module_or_path: "oscillator_loader_bg.wasm" });
-                const ctx = new AudioContext();
-                const oscillator = await create_oscillator_node(ctx);
-                oscillator.connect(ctx.destination);
-                document.getElementById("playButton").addEventListener("mousedown", () => {
-                    oscillator.noteOn(parseInt(document.getElementById("note1Index").value));
-                    oscillator.noteOn(parseInt(document.getElementById("note2Index").value));
-                });
-                document.getElementById("playButton").addEventListener("mouseup", () => {
-                    oscillator.noteOff(parseInt(document.getElementById("note1Index").value));
-                    oscillator.noteOff(parseInt(document.getElementById("note2Index").value));
-                });
-                document.getElementById("frequencySlider").addEventListener("change", evt => {
-                    oscillator.parameters.get("Frequency").value = parseFloat(evt.target.value);
-                });
-            }
+            await init({ module_or_path: "oscillator_loader_bg.wasm" });
+            const ctx = new AudioContext();
+            const oscillator = await create_oscillator_node(ctx);
+            oscillator.connect(ctx.destination);
+            document.getElementById("playButton").addEventListener("mousedown", () => {
+                const index1 = parseInt(document.getElementById("note1Index").value);
+                const velocity1 = parseInt(document.getElementById("note1Velocity").value)
+                const index2 = parseInt(document.getElementById("note2Index").value);
+                const velocity2 = parseInt(document.getElementById("note2Velocity").value)
+                oscillator.noteOn(index1, velocity1);
+                oscillator.noteOn(index2, velocity2);
+            });
+            document.getElementById("playButton").addEventListener("mouseup", () => {
+                const index1 = parseInt(document.getElementById("note1Index").value);
+                const velocity1 = parseInt(document.getElementById("note1Velocity").value)
+                const index2 = parseInt(document.getElementById("note2Index").value);
+                const velocity2 = parseInt(document.getElementById("note2Velocity").value)
+                oscillator.noteOff(index1, velocity1);
+                oscillator.noteOff(index2, velocity2);
+            });
+        }
 
-            document.body.addEventListener("click", run);
-        </script>
-    </body>
+        document.body.addEventListener("click", run);
+    </script>
+</body>
 </html>
