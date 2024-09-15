@@ -33,3 +33,25 @@ jobs:
               with:
                 name: dist
                 path: examples/oscillator-web/web_dynamic
+    
+    deploy:
+        runs-on: ubuntu-latest
+        needs: build
+        environment: 
+            name: github-pages
+            url: ${{steps.deployment.outputs.page_url}}
+        permissions:
+            contents: read
+            pages: write
+            id-token: write
+        steps:
+            - uses: actions/download-artifact@main
+              with:
+                name: dist
+                path: .
+            - uses: actions/configure-pages@main
+            - uses: actions/upload-pages-artifact@main
+              with:
+                path: .
+            - id: deployment
+              uses: actions/deploy-pages@main
