@@ -3,7 +3,7 @@ use js_sys::{Array, Promise, Reflect, WebAssembly};
 use pure_audio::ParameterDescriptor;
 use wasm_bindgen::{JsCast, JsValue, UnwrapThrowExt};
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{AudioContext, AudioWorkletNodeOptions, Blob, BlobPropertyBag, Request, RequestInit, Url};
+use web_sys::{console::log_1, AudioContext, AudioWorkletNodeOptions, Blob, BlobPropertyBag, Request, RequestInit, Url};
 
 const AUDIO_CONTEXT_REGISTERED_MODULES_FIELD_NAME: &'static str = "registeredModules";
 
@@ -13,6 +13,7 @@ pub async fn register_and_create_node<const IS_INSTRUMENT: bool, const NUM_INPUT
 where
     F: IntoWasmProcessor<IS_INSTRUMENT, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>
 {
+    log_1(&"Checking registered modules".into());
     let registered_modules = {
         if let Ok(registered_modules) = Reflect::get(ctx, &AUDIO_CONTEXT_REGISTERED_MODULES_FIELD_NAME.into()).and_then(JsCast::dyn_into::<Array>) {
             registered_modules
@@ -36,11 +37,14 @@ async fn register_node<const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const
 where
     F: IntoWasmProcessor<IS_INSTRUMENT, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>
 {
+    log_1(&"Registering node".into());
     let meta_url: String = IMPORT_META.with(ImportMeta::url).into();
     let mut parts = meta_url.split("/").collect::<Vec<_>>();
     let bindgen_file = format!("{name}.js");
+    log_1(&format!("Bindgen file: {bindgen_file}").into());
     *parts.iter_mut().last().unwrap_throw() = &bindgen_file;
     let meta_url = parts.join("/");
+    log_1(&format!("Meta url: {meta_url}").into());
 
     let (process_condition, process_copy_input) = 
     if NUM_INPUTS == 0 {
@@ -146,7 +150,10 @@ where
         Blob::new_with_str_sequence_and_options(&Array::of1(&JsValue::from_str(&code)), &options)?;
     let url = Url::create_object_url_with_blob(&blob)?;
 
+    log_1(&format!("Blob url: {url}").into());
+
     JsFuture::from(ctx.audio_worklet()?.add_module(&url)?).await?;
+    log_1(&"Added module".into());
     Ok(())
 }
 
@@ -158,9 +165,12 @@ async fn create_node<const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const N
 where
     F: IntoWasmProcessor<IS_INSTRUMENT, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>
 {
+    log_1(&"Creating node".into());
     let mut options = AudioWorkletNodeOptions::new();
     let response = fetch(&format!("{name}_bg.wasm")).await.unwrap_throw();
+    log_1(&"Fetched wasm module".into());
     let module = JsFuture::from(WebAssembly::compile_streaming(&response)).await.unwrap_throw();
+    log_1(&"Compiled wasm module".into());
 
     options.number_of_inputs(NUM_INPUTS as u32);
     options.number_of_outputs(NUM_OUTPUTS as u32);
@@ -173,6 +183,8 @@ where
 async fn fetch(url: &str) -> Result<Promise, JsValue> {
     let mut opts = RequestInit::new();
     opts.method("GET");
+
+    log_1(&format!("Fetching {url}").into());
 
     let request = Request::new_with_str_and_init(url, &opts)?;
 
