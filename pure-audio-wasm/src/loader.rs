@@ -1,7 +1,7 @@
 use crate::{audio_worklet_node::WasmAudioWorkletNode, es_module::{ImportMeta, IMPORT_META}, IntoWasmProcessor, PROCESSOR_BLOCK_LENGTH};
 use js_sys::{Array, Promise, Reflect, WebAssembly};
 use pure_audio::ParameterDescriptor;
-use wasm_bindgen::{JsCast, JsValue};
+use wasm_bindgen::{JsCast, JsValue, UnwrapThrowExt};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{AudioContext, AudioWorkletNodeOptions, Blob, BlobPropertyBag, Request, RequestInit, Url};
 
@@ -18,7 +18,7 @@ where
             registered_modules
         } else {
             let registered_modules = Array::new();
-            Reflect::set(ctx, &AUDIO_CONTEXT_REGISTERED_MODULES_FIELD_NAME.into(), &registered_modules).unwrap();
+            Reflect::set(ctx, &AUDIO_CONTEXT_REGISTERED_MODULES_FIELD_NAME.into(), &registered_modules).unwrap_throw();
             registered_modules
         }
     };
@@ -39,7 +39,7 @@ where
     let meta_url: String = IMPORT_META.with(ImportMeta::url).into();
     let mut parts = meta_url.split("/").collect::<Vec<_>>();
     let bindgen_file = format!("{name}.js");
-    *parts.iter_mut().last().unwrap() = &bindgen_file;
+    *parts.iter_mut().last().unwrap_throw() = &bindgen_file;
     let meta_url = parts.join("/");
 
     let (process_condition, process_copy_input) = 
@@ -159,8 +159,8 @@ where
     F: IntoWasmProcessor<IS_INSTRUMENT, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>
 {
     let mut options = AudioWorkletNodeOptions::new();
-    let response = fetch(&format!("{name}_bg.wasm")).await.unwrap();
-    let module = JsFuture::from(WebAssembly::compile_streaming(&response)).await.unwrap();
+    let response = fetch(&format!("{name}_bg.wasm")).await.unwrap_throw();
+    let module = JsFuture::from(WebAssembly::compile_streaming(&response)).await.unwrap_throw();
 
     options.number_of_inputs(NUM_INPUTS as u32);
     options.number_of_outputs(NUM_OUTPUTS as u32);
@@ -176,6 +176,6 @@ async fn fetch(url: &str) -> Result<Promise, JsValue> {
 
     let request = Request::new_with_str_and_init(url, &opts)?;
 
-    let window = web_sys::window().unwrap();
+    let window = web_sys::window().unwrap_throw();
     Ok(window.fetch_with_request(&request))
 }
