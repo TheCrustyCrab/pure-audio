@@ -40,7 +40,8 @@ where
     log_1(&"Registering node".into());
     let meta_url: String = IMPORT_META.with(ImportMeta::url).into();
     let mut parts = meta_url.split("/").collect::<Vec<_>>();
-    let bindgen_file = format!("{name}.js");
+    let name_lowercase = name.to_ascii_lowercase();
+    let bindgen_file = format!("{name_lowercase}.js");
     log_1(&format!("Bindgen file: {bindgen_file}").into());
     *parts.iter_mut().last().unwrap_throw() = &bindgen_file;
     let meta_url = parts.join("/");
@@ -167,7 +168,8 @@ where
 {
     log_1(&"Creating node".into());
     let mut options = AudioWorkletNodeOptions::new();
-    let response = fetch(&format!("{name}_bg.wasm")).await.unwrap_throw();
+    let name_lowercase = name.to_ascii_lowercase();
+    let response = fetch(&format!("{name_lowercase}_bg.wasm")).await.unwrap_throw();
     log_1(&"Fetched wasm module".into());
     let module = JsFuture::from(WebAssembly::compile_streaming(&response)).await.unwrap_throw();
     log_1(&"Compiled wasm module".into());
