@@ -13,5 +13,7 @@ pub fn create_gain_processor(sample_rate: f32) -> pure_audio_wasm::WasmProcessor
 #[cfg(not(feature = "build_processor"))]
 #[wasm_bindgen]
 pub async fn create_oscillator_node(ctx: &AudioContext) -> InstrumentAudioWorkletNode {
-    pure_audio_wasm::register_and_create_node("Oscillator", oscillator::process, ctx).await.unwrap()
+    use wasm_bindgen::UnwrapThrowExt;
+
+    pure_audio_wasm::register_and_create_node("Oscillator", oscillator::process, ctx).await.unwrap_throw()
 }
