@@ -8,6 +8,7 @@ use web_sys::{console::log_1, AudioContext, AudioWorkletNodeOptions, Blob, BlobP
 const AUDIO_CONTEXT_REGISTERED_MODULES_FIELD_NAME: &'static str = "registeredModules";
 
 pub async fn register_and_create_node<const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S, F>(name: &str, 
+    wasm_url: &str,
     process: F, ctx: &AudioContext)
 -> Result<F::AudioWorkletNodeType, JsValue>
 where
@@ -29,7 +30,7 @@ where
         registered_modules.push(&name.into());
     }
 
-    create_node(name, &process, ctx).await
+    create_node(name, wasm_url, &process, ctx).await
 }
 
 async fn register_node<const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, F, Params, S>(
@@ -160,6 +161,7 @@ where
 
 async fn create_node<const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, F, Params, S>(
     name: &str,
+    wasm_url: &str,
     _process: &F,
     ctx: &AudioContext)
 -> Result<F::AudioWorkletNodeType, JsValue>
@@ -168,8 +170,7 @@ where
 {
     log_1(&"Creating node".into());
     let mut options = AudioWorkletNodeOptions::new();
-    let name_lowercase = name.to_ascii_lowercase();
-    let response = fetch(&format!("{name_lowercase}_bg.wasm")).await.unwrap_throw();
+    let response = fetch(wasm_url).await.unwrap_throw();
     log_1(&"Fetched wasm module".into());
     let module = JsFuture::from(WebAssembly::compile_streaming(&response)).await.unwrap_throw();
     log_1(&"Compiled wasm module".into());

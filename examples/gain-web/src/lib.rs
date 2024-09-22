@@ -11,6 +11,6 @@ pub fn create_gain_processor(sample_rate: f32) -> pure_audio_wasm::WasmProcessor
 // user-called method to create the node
 #[cfg(not(feature = "build_processor"))]
 #[wasm_bindgen]
-pub async fn create_gain_node(ctx: &AudioContext) -> AudioWorkletNode {
-    pure_audio_wasm::register_and_create_node("Gain", gain::process, ctx).await.unwrap()
+pub async fn create_gain_node(ctx: &AudioContext, wasm_url: &str) -> AudioWorkletNode {
+    pure_audio_wasm::register_and_create_node("Gain", wasm_url, gain::process, ctx).await.unwrap()
 }
