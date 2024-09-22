@@ -27,8 +27,8 @@ pub fn process(
                 voices.insert(*key, Voice { phase: 0, velocity: *velocity });
             },
             pure_audio::Event::NoteOff { key, .. } => {
-                *active = false;
                 voices.remove(key);
+                *active = voices.len() > 0;
             },
         }
     }
