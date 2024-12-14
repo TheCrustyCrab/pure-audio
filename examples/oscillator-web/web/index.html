@@ -1,5 +1,7 @@
 <html>
+
 <head></head>
+
 <body>
     <div>
         Note index:
@@ -8,8 +10,8 @@
     </div>
     <div>
         Velocity:
-        <input id="note1Velocity" type="range" min="0" max="127" step="1" value="127"/>
-        <input id="note2Velocity" type="range" min="0" max="127" step="1" value="127"/>
+        <input id="note1Velocity" type="range" min="0" max="127" step="1" value="127" />
+        <input id="note2Velocity" type="range" min="0" max="127" step="1" value="127" />
     </div>
     <button id="playButton">Play</button>
     <script type="module">
@@ -20,7 +22,7 @@
 
             await init({ module_or_path: "oscillator_loader_bg.wasm" });
             const ctx = new AudioContext();
-            const oscillator = await create_oscillator_node(ctx, "oscillator_bg.wasm");
+            const oscillator = await create_oscillator_node(ctx);
             oscillator.connect(ctx.destination);
             document.getElementById("playButton").addEventListener("pointerdown", () => {
                 const index1 = parseInt(document.getElementById("note1Index").value);
@@ -43,4 +45,5 @@
         document.body.addEventListener("click", run);
     </script>
 </body>
+
 </html>
