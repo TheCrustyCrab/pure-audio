@@ -1,5 +1,5 @@
 use std::ops::Mul;
-use pure_audio::{EffectAudioData, InputBuffer, OutputBuffer, ParameterAutomationRate, ParameterDescriptor, ProcessorParameter};
+use pure_audio::{AudioData, InputBuffer, OutputBuffer, ParameterAutomationRate, ParameterDescriptor, ProcessorParameter};
 
 #[derive(Copy, Clone)]
 pub struct GainVolumeParameter(f32);
@@ -52,11 +52,11 @@ impl Mul<GainVolumeParameter> for &f32 {
 }
 
 pub fn process(
-    EffectAudioData {
+    AudioData {
         inputs: InputBuffer([[ref input]]),
         outputs: OutputBuffer([[output]]),
         ..
-    }: EffectAudioData,
+    }: AudioData,
     volume: GainVolumeParameter,
 ) {
     for (input_sample, output_sample) in input.iter().zip(output) {

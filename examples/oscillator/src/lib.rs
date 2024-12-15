@@ -1,5 +1,5 @@
 use std::{collections::HashMap, f32::consts::TAU};
-use pure_audio::{InstrumentAudioData, OutputBuffer};
+use pure_audio::{AudioData, OutputBuffer};
 
 struct Voice {
     phase: f32,
@@ -39,12 +39,13 @@ pub struct OscillatorState {
 }
 
 pub fn process(
-    InstrumentAudioData {
+    AudioData {
         events,
         outputs: OutputBuffer([[output]]),
         sample_rate,
         state: OscillatorState { active, voices },
-    }: InstrumentAudioData<1, 1, 128, OscillatorState>
+        ..
+    }: AudioData<0, 1, 1, 128, OscillatorState>
 ) {
     for event in events {
         match event {

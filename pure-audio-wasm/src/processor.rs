@@ -52,7 +52,7 @@ pub trait WasmProcessorImplementation: 'static {
     fn note_off(&mut self, key: u8, velocity: u8);
 }
 
-struct WasmProcessorWrapper<P, const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params> {
+struct WasmProcessorWrapper<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params> {
     processor: P,
     events: Vec<Event>,
     inputs: [[[f32; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_INPUTS],
@@ -61,7 +61,7 @@ struct WasmProcessorWrapper<P, const IS_INSTRUMENT: bool, const NUM_INPUTS: usiz
     marker: PhantomData<Params>
 }
 
-impl<P, const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, Params, const NUM_PARAMS: usize> WasmProcessorWrapper<P, IS_INSTRUMENT, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params>
+impl<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, Params, const NUM_PARAMS: usize> WasmProcessorWrapper<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params>
 {
     fn new(processor: P) -> Self {
         Self {
@@ -75,19 +75,19 @@ impl<P, const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const NUM_OUTPUTS: u
     }
 }
 
-pub trait IntoWasmProcessor<const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S> {
+pub trait IntoWasmProcessor<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S> {
     fn get_parameter_descriptors() -> [ParameterDescriptor; NUM_PARAMS];
     fn into_wasm_processor(self, sample_rate: f32) -> WasmProcessor;
 }
 
-pub trait IntoWasmProcessorImplementation<const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S> {
+pub trait IntoWasmProcessorImplementation<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S> {
     fn get_parameter_descriptors() -> [ParameterDescriptor; NUM_PARAMS];
     fn into_wasm_processor_implementation(self, sample_rate: f32) -> impl WasmProcessorImplementation;
 }
 
-impl<I, const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S> IntoWasmProcessor<IS_INSTRUMENT, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S> for I
+impl<I, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S> IntoWasmProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S> for I
 where
-    I: IntoWasmProcessorImplementation<IS_INSTRUMENT, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>
+    I: IntoWasmProcessorImplementation<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>
 {
     fn into_wasm_processor(self, sample_rate: f32) -> WasmProcessor {
         WasmProcessor::new(Box::new(self.into_wasm_processor_implementation(sample_rate)))
@@ -98,9 +98,9 @@ where
     }
 }
 
-impl<P, Params, const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize> WasmProcessorImplementation for WasmProcessorWrapper<P, IS_INSTRUMENT, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params>
+impl<P, Params, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize> WasmProcessorImplementation for WasmProcessorWrapper<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params>
 where
-    P: 'static + Processor<IS_INSTRUMENT, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, PROCESSOR_BLOCK_LENGTH, NUM_PARAMS, Params>,
+    P: 'static + Processor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, PROCESSOR_BLOCK_LENGTH, NUM_PARAMS, Params>,
     Params: 'static
 {
     fn get_inputs_ptr(&mut self) -> usize {
@@ -131,9 +131,9 @@ where
     }
 }
 
-impl<F, Params, const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, S> IntoWasmProcessorImplementation<IS_INSTRUMENT, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S> for F
+impl<F, Params, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, S> IntoWasmProcessorImplementation<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S> for F
 where 
-    F: 'static + IntoProcessor<IS_INSTRUMENT, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, PROCESSOR_BLOCK_LENGTH, NUM_PARAMS, Params, S>,
+    F: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, PROCESSOR_BLOCK_LENGTH, NUM_PARAMS, Params, S>,
     Params: 'static,
     S: 'static + Default
 {
