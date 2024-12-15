@@ -1,8 +1,7 @@
 use std::marker::PhantomData;
 use pure_audio::{Event, IntoProcessor, ParameterDescriptor, Processor};
 use wasm_bindgen::prelude::*;
-use web_sys::AudioWorkletNode;
-use crate::{InstrumentAudioWorkletNode, WasmAudioWorkletNode, PROCESSOR_BLOCK_LENGTH};
+use crate::PROCESSOR_BLOCK_LENGTH;
 
 #[wasm_bindgen]
 pub struct WasmProcessor {
@@ -77,13 +76,11 @@ impl<P, const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const NUM_OUTPUTS: u
 }
 
 pub trait IntoWasmProcessor<const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S> {
-    type AudioWorkletNodeType: WasmAudioWorkletNode;
     fn get_parameter_descriptors() -> [ParameterDescriptor; NUM_PARAMS];
     fn into_wasm_processor(self, sample_rate: f32) -> WasmProcessor;
 }
 
 pub trait IntoWasmProcessorImplementation<const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S> {
-    type AudioWorkletNodeType: WasmAudioWorkletNode;
     fn get_parameter_descriptors() -> [ParameterDescriptor; NUM_PARAMS];
     fn into_wasm_processor_implementation(self, sample_rate: f32) -> impl WasmProcessorImplementation;
 }
@@ -92,8 +89,6 @@ impl<I, const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const NUM_OUTPUTS: u
 where
     I: IntoWasmProcessorImplementation<IS_INSTRUMENT, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>
 {
-    type AudioWorkletNodeType = I::AudioWorkletNodeType;
-
     fn into_wasm_processor(self, sample_rate: f32) -> WasmProcessor {
         WasmProcessor::new(Box::new(self.into_wasm_processor_implementation(sample_rate)))
     }
@@ -138,12 +133,10 @@ where
 
 impl<F, Params, const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, S> IntoWasmProcessorImplementation<IS_INSTRUMENT, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S> for F
 where 
-    F: 'static + IntoProcessor<IS_INSTRUMENT, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, PROCESSOR_BLOCK_LENGTH, NUM_PARAMS, Params, S> + AudioWorkletNodeType<IS_INSTRUMENT, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>,
+    F: 'static + IntoProcessor<IS_INSTRUMENT, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, PROCESSOR_BLOCK_LENGTH, NUM_PARAMS, Params, S>,
     Params: 'static,
     S: 'static + Default
 {
-    type AudioWorkletNodeType = F::AudioWorkletNodeType;
-
     fn get_parameter_descriptors() -> [ParameterDescriptor; NUM_PARAMS] {
         F::get_parameter_descriptors()
     }
@@ -151,22 +144,4 @@ where
     fn into_wasm_processor_implementation(self, sample_rate: f32) -> impl WasmProcessorImplementation {
         WasmProcessorWrapper::new(self.into_processor(sample_rate))
     }
-}
-
-pub trait AudioWorkletNodeType<const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S> {
-    type AudioWorkletNodeType: WasmAudioWorkletNode;
-}
-
-impl<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S> AudioWorkletNodeType<false, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S> for P
-where 
-    P: IntoProcessor<false, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, PROCESSOR_BLOCK_LENGTH, NUM_PARAMS, Params, S>
-{
-    type AudioWorkletNodeType = AudioWorkletNode;
-}
-
-impl<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S> AudioWorkletNodeType<true, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S> for P
-where 
-    P: IntoProcessor<true, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, PROCESSOR_BLOCK_LENGTH, NUM_PARAMS, Params, S>
-{
-    type AudioWorkletNodeType = InstrumentAudioWorkletNode;
 }

@@ -1,4 +1,4 @@
-use crate::{audio_worklet_node::WasmAudioWorkletNode, es_module::{ImportMeta, IMPORT_META}, IntoWasmProcessor, PROCESSOR_BLOCK_LENGTH};
+use crate::{es_module::{ImportMeta, IMPORT_META}, IntoWasmProcessor, PureAudioWorkletNode, PROCESSOR_BLOCK_LENGTH};
 use js_sys::{Array, Reflect};
 use pure_audio::ParameterDescriptor;
 use wasm_bindgen::{JsCast, JsValue, UnwrapThrowExt};
@@ -9,7 +9,7 @@ const AUDIO_CONTEXT_REGISTERED_MODULES_FIELD_NAME: &'static str = "registeredMod
 
 pub async fn register_and_create_node<const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S, F>(name: &str, 
     process: F, ctx: &AudioContext)
--> Result<F::AudioWorkletNodeType, JsValue>
+-> Result<PureAudioWorkletNode, JsValue>
 where
     F: IntoWasmProcessor<IS_INSTRUMENT, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>
 {
@@ -156,7 +156,7 @@ async fn create_node<const IS_INSTRUMENT: bool, const NUM_INPUTS: usize, const N
     name: &str,
     _process: &F,
     ctx: &AudioContext)
--> Result<F::AudioWorkletNodeType, JsValue>
+-> Result<PureAudioWorkletNode, JsValue>
 where
     F: IntoWasmProcessor<IS_INSTRUMENT, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>
 {
@@ -167,5 +167,5 @@ where
     options.processor_options(Some(
         &Array::of2(&wasm_bindgen::module(), &ctx.sample_rate().into())
     ));
-    F::AudioWorkletNodeType::new_with_options(&ctx, name, &options)
+    PureAudioWorkletNode::new_with_options(&ctx, name, &options)
 }

@@ -1,6 +1,9 @@
-use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen::{prelude::wasm_bindgen, UnwrapThrowExt};
 use web_sys::AudioContext;
-use pure_audio_wasm::InstrumentAudioWorkletNode;
+use pure_audio_wasm::PureAudioWorkletNode;
+
+// todo: macro to generate both entrypoints
+// pure_audio_wasm_entry!("Oscillator", oscillator::process)
 
 // factory-method called from the constructor of the worklet
 #[wasm_bindgen(js_name = create_wasm_processor)]
@@ -10,14 +13,6 @@ pub fn create_oscillator_processor(sample_rate: f32) -> pure_audio_wasm::WasmPro
 
 // user-called method to create the node
 #[wasm_bindgen]
-pub async fn create_oscillator_node(ctx: &AudioContext) -> InstrumentAudioWorkletNode {
-    use web_sys::console::log_1;
-
-    match pure_audio_wasm::register_and_create_node("Oscillator", oscillator::process, ctx).await {
-        Ok(node) => node,
-        Err(e) => {
-            log_1(&e);
-            panic!()
-        }
-    }
+pub async fn create_oscillator_node(ctx: &AudioContext) -> PureAudioWorkletNode {
+    pure_audio_wasm::register_and_create_node("Oscillator", oscillator::process, ctx).await.unwrap_throw()
 }

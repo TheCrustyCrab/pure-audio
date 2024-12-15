@@ -9,13 +9,14 @@
 
                 await init({ module_or_path: "gain_loader_bg.wasm" });
                 const ctx = new AudioContext();
-                const gain = await create_gain_node(ctx, "gain_bg.wasm");
+                const gain = await create_gain_node(ctx);
                 const tone = new OscillatorNode(ctx, {
                     frequency: 440
                 });
                 tone.start();
                 tone.connect(gain);
                 gain.connect(ctx.destination);
+                window.gain = gain;
             }
 
             document.body.addEventListener("click", run);
