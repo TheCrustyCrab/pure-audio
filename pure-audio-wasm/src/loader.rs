@@ -29,7 +29,7 @@ where
         registered_modules.push(&name.into());
     }
 
-    create_node(name, &process, ctx).await
+    create_node(name, NUM_INPUTS, NUM_OUTPUTS, ctx)
 }
 
 async fn register_node<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, F, Params, S>(
@@ -89,12 +89,14 @@ where
 
     let (parameter_descriptors, parameter_values) = 
         (parameter_descriptors.join(", "), parameter_values.join(", "));
+
+    let create_wasm_processor_function = format!("create_{name}_wasm_processor");
     
     // available global variables: sampleRate, currentTime, currentFrame
     // see https://developer.mozilla.org/en-US/docs/Web/API/AudioWorkletGlobalScope
     let code = format!(
         r#"
-        import {{ initSync, create_wasm_processor }} from '{meta_url}';
+        import {{ initSync, {create_wasm_processor_function} }} from '{meta_url}';
 
         registerProcessor("{name}", class {name} extends AudioWorkletProcessor {{
             constructor(options) {{
@@ -112,7 +114,7 @@ where
                 }};
                 const [module, sampleRate] = options.processorOptions;
                 const {{ memory }} = initSync({{ module }});
-                this.processor = create_wasm_processor(sampleRate);
+                this.processor = {create_wasm_processor_function}(sampleRate);
 
                 this.inputsPtr = this.processor.get_inputs_ptr() / 4; // NUM_INPUTS * NUM_CHANNELS * [f32; 128]
                 this.outputsPtr = this.processor.get_outputs_ptr() / 4; // NUM_OUTPUTS * NUM_CHANNELS * [f32; 128]
@@ -152,18 +154,11 @@ where
     Ok(())
 }
 
-async fn create_node<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, F, Params, S>(
-    name: &str,
-    _process: &F,
-    ctx: &AudioContext)
--> Result<PureAudioWorkletNode, JsValue>
-where
-    F: IntoWasmProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>
-{
+fn create_node(name: &str, num_inputs: usize, num_outputs: usize, ctx: &AudioContext) -> Result<PureAudioWorkletNode, JsValue> {
     log_1(&"Creating node".into());
     let mut options = AudioWorkletNodeOptions::new();
-    options.number_of_inputs(NUM_INPUTS as u32);
-    options.number_of_outputs(NUM_OUTPUTS as u32);
+    options.number_of_inputs(num_inputs as u32);
+    options.number_of_outputs(num_outputs as u32);
     options.processor_options(Some(
         &Array::of2(&wasm_bindgen::module(), &ctx.sample_rate().into())
     ));

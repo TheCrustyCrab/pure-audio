@@ -1,4 +1,5 @@
 mod audio_worklet_node;
+mod entry;
 mod es_module;
 mod loader;
 mod processor;
@@ -6,7 +7,11 @@ mod processor;
 // re-export
 pub use audio_worklet_node::*;
 pub use loader::*;
+pub use paste;
 pub use processor::*;
+pub use wasm_bindgen;
+pub use wasm_bindgen_futures;
+pub use web_sys::AudioContext;
 
 // https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Using_AudioWorklet#the_input_and_output_lists
 // currently fixed size
