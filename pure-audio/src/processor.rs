@@ -7,17 +7,19 @@ pub trait Processor<
     const NUM_INPUTS: usize,
     const NUM_OUTPUTS: usize,
     const NUM_CHANNELS: usize,
-    const BLOCK_SIZE: usize,
     const NUM_PARAMS: usize,
     Params,
 >
 {
-    fn process(
-        &mut self,
-        inputs: &[[[f32; BLOCK_SIZE]; NUM_CHANNELS]; NUM_INPUTS],
-        outputs: &mut [[[f32; BLOCK_SIZE]; NUM_CHANNELS]; NUM_OUTPUTS],
-        parameters: &[f32; NUM_PARAMS],
-        events: &[Event]
+    // currently passing inputs by reference 
+    // and outputs (the container struct with size = NUM_OUTPUTS * NUM_CHANNELS * 2 * word size) with ownership which might not be ideal for performance
+    // reason: passing outputs by mutable reference causes an inconvenient &mut &mut f32 in the process functions
+    fn process<'a>(
+        &'a mut self,
+        inputs: &'a [[&'a [f32]; NUM_CHANNELS]; NUM_INPUTS],
+        outputs: [[&'a mut [f32]; NUM_CHANNELS]; NUM_OUTPUTS],
+        parameters: &'a [f32; NUM_PARAMS],
+        events: &'a [Event]
     ) {
     }
 }
@@ -27,7 +29,6 @@ pub struct ProcessorWrapper<
     const NUM_INPUTS: usize,
     const NUM_OUTPUTS: usize,
     const NUM_CHANNELS: usize,
-    const BLOCK_SIZE: usize,
     const NUM_PARAMS: usize,
     Params,
     S,
@@ -43,7 +44,6 @@ impl<
         const NUM_INPUTS: usize,
         const NUM_OUTPUTS: usize,
         const NUM_CHANNELS: usize,
-        const BLOCK_SIZE: usize,
         const NUM_PARAMS: usize,
         Params,
         S,
@@ -53,7 +53,6 @@ impl<
         NUM_INPUTS,
         NUM_OUTPUTS,
         NUM_CHANNELS,
-        BLOCK_SIZE,
         NUM_PARAMS,
         Params,
         S,
@@ -73,7 +72,6 @@ pub trait IntoProcessor<
     const NUM_INPUTS: usize,
     const NUM_OUTPUTS: usize,
     const NUM_CHANNELS: usize,
-    const BLOCK_SIZE: usize,
     const NUM_PARAMS: usize,
     Params,
     S,
@@ -87,27 +85,26 @@ pub trait IntoProcessor<
         NUM_INPUTS,
         NUM_OUTPUTS,
         NUM_CHANNELS,
-        BLOCK_SIZE,
         NUM_PARAMS,
         Params,
     >;
 }
 
 // 0 parameters
-impl<F, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const BLOCK_SIZE: usize, S>
-    Processor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, BLOCK_SIZE, 0, ()>
-    for ProcessorWrapper<F, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, BLOCK_SIZE, 0, (), S>
+impl<F, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, S>
+    Processor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, 0, ()>
+    for ProcessorWrapper<F, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, 0, (), S>
 where 
-    F: 'static + FnMut(AudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, BLOCK_SIZE, S>),
+    F: 'static + FnMut(AudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, S>),
     S: 'static + Default
 {
     #[inline]
-    fn process(
-        &mut self,
-        inputs: &[[[f32; BLOCK_SIZE]; NUM_CHANNELS]; NUM_INPUTS],
-        outputs: &mut [[[f32; BLOCK_SIZE]; NUM_CHANNELS]; NUM_OUTPUTS],
-        _parameters: &[f32; 0],
-        events: &[Event]
+    fn process<'a>(
+        &'a mut self,
+        inputs: &'a [[&'a [f32]; NUM_CHANNELS]; NUM_INPUTS],
+        outputs: [[&'a mut [f32]; NUM_CHANNELS]; NUM_OUTPUTS],
+        _parameters: &'a [f32; 0],
+        events: &'a [Event]
     ) {
         let data = AudioData {
             events,
@@ -120,10 +117,10 @@ where
     }
 }
 
-impl<F, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const BLOCK_SIZE: usize, S>
-    IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, BLOCK_SIZE, 0, (), S> for F
+impl<F, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, S>
+    IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, 0, (), S> for F
 where
-    F: 'static + FnMut(AudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, BLOCK_SIZE, S>),
+    F: 'static + FnMut(AudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, S>),
     S: 'static + Default,
 {
     fn get_parameter_descriptors() -> [ParameterDescriptor; 0] {
@@ -133,7 +130,7 @@ where
     fn into_processor(
         self,
         sample_rate: f32,
-    ) -> impl Processor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, BLOCK_SIZE, 0, ()> {
+    ) -> impl Processor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, 0, ()> {
         ProcessorWrapper::new(self, sample_rate, S::default())
     }
 }
@@ -145,22 +142,21 @@ impl<
         const NUM_INPUTS: usize,
         const NUM_OUTPUTS: usize,
         const NUM_CHANNELS: usize,
-        const BLOCK_SIZE: usize,
         S,
-    > Processor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, BLOCK_SIZE, 1, (P1,)>
-    for ProcessorWrapper<F, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, BLOCK_SIZE, 1, (P1,), S>
+    > Processor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, 1, (P1,)>
+    for ProcessorWrapper<F, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, 1, (P1,), S>
 where
-    F: 'static + FnMut(AudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, BLOCK_SIZE, S>, P1),
+    F: 'static + FnMut(AudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, S>, P1),
     P1: 'static + FromParameters,
     S: 'static + Default,
 {
     #[inline]
-    fn process(
-        &mut self,
-        inputs: &[[[f32; BLOCK_SIZE]; NUM_CHANNELS]; NUM_INPUTS],
-        outputs: &mut [[[f32; BLOCK_SIZE]; NUM_CHANNELS]; NUM_OUTPUTS],
-        parameters: &[f32; 1],
-        events: &[Event]
+    fn process<'a>(
+        &'a mut self,
+        inputs: &'a [[&'a [f32]; NUM_CHANNELS]; NUM_INPUTS],
+        outputs: [[&'a mut [f32]; NUM_CHANNELS]; NUM_OUTPUTS],
+        parameters: &'a [f32; 1],
+        events: &'a [Event]
     ) {
         let p1 = P1::from_parameters(parameters, 0);
         let data = AudioData {
@@ -180,11 +176,10 @@ impl<
         const NUM_INPUTS: usize,
         const NUM_OUTPUTS: usize,
         const NUM_CHANNELS: usize,
-        const BLOCK_SIZE: usize,
         S,
-    > IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, BLOCK_SIZE, 1, (P1,), S> for F
+    > IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, 1, (P1,), S> for F
 where
-    F: 'static + FnMut(AudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, BLOCK_SIZE, S>, P1),
+    F: 'static + FnMut(AudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, S>, P1),
     P1: 'static + FromParameters,
     S: 'static + Default,
 {
@@ -195,7 +190,7 @@ where
     fn into_processor(
         self,
         sample_rate: f32,
-    ) -> impl Processor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, BLOCK_SIZE, 1, (P1,)> {
+    ) -> impl Processor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, 1, (P1,)> {
         ProcessorWrapper::new(self, sample_rate, S::default())
     }
 }
@@ -208,33 +203,31 @@ impl<
         const NUM_INPUTS: usize,
         const NUM_OUTPUTS: usize,
         const NUM_CHANNELS: usize,
-        const BLOCK_SIZE: usize,
         S,
-    > Processor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, BLOCK_SIZE, 2, (P1, P2)>
+    > Processor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, 2, (P1, P2)>
     for ProcessorWrapper<
         F,
         NUM_INPUTS,
         NUM_OUTPUTS,
         NUM_CHANNELS,
-        BLOCK_SIZE,
         2,
         (P1, P2),
         S,
     >
 where
     F: 'static
-        + FnMut(AudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, BLOCK_SIZE, S>, P1, P2),
+        + FnMut(AudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, S>, P1, P2),
     P1: 'static + FromParameters,
     P2: 'static + FromParameters,
     S: 'static + Default,
 {
     #[inline]
-    fn process(
-        &mut self,
-        inputs: &[[[f32; BLOCK_SIZE]; NUM_CHANNELS]; NUM_INPUTS],
-        outputs: &mut [[[f32; BLOCK_SIZE]; NUM_CHANNELS]; NUM_OUTPUTS],
-        parameters: &[f32; 2],
-        events: &[Event]
+    fn process<'a>(
+        &'a mut self,
+        inputs: &'a [[&'a [f32]; NUM_CHANNELS]; NUM_INPUTS],
+        outputs: [[&'a mut [f32]; NUM_CHANNELS]; NUM_OUTPUTS],
+        parameters: &'a [f32; 2],
+        events: &'a [Event]
     ) {
         let p1 = P1::from_parameters(parameters, 0);
         let p2 = P2::from_parameters(parameters, 1);
@@ -256,12 +249,11 @@ impl<
         const NUM_INPUTS: usize,
         const NUM_OUTPUTS: usize,
         const NUM_CHANNELS: usize,
-        const BLOCK_SIZE: usize,
         S,
-    > IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, BLOCK_SIZE, 2, (P1, P2), S> for F
+    > IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, 2, (P1, P2), S> for F
 where
     F: 'static
-        + FnMut(AudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, BLOCK_SIZE, S>, P1, P2),
+        + FnMut(AudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, S>, P1, P2),
     P1: 'static + FromParameters,
     P2: 'static + FromParameters,
     S: 'static + Default,
@@ -273,7 +265,7 @@ where
     fn into_processor(
         self,
         sample_rate: f32,
-    ) -> impl Processor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, BLOCK_SIZE, 2, (P1, P2)> {
+    ) -> impl Processor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, 2, (P1, P2)> {
         ProcessorWrapper::new(self, sample_rate, S::default())
     }
 }

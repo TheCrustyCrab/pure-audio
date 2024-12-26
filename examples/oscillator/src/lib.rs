@@ -45,7 +45,7 @@ pub fn process(
         sample_rate,
         state: OscillatorState { active, voices },
         ..
-    }: AudioData<0, 1, 1, 128, OscillatorState>
+    }: AudioData<0, 1, 1, OscillatorState>
 ) {
     for event in events {
         match event {

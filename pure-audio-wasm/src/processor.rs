@@ -100,7 +100,7 @@ where
 
 impl<P, Params, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize> WasmProcessorImplementation for WasmProcessorWrapper<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params>
 where
-    P: 'static + Processor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, PROCESSOR_BLOCK_LENGTH, NUM_PARAMS, Params>,
+    P: 'static + Processor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params>,
     Params: 'static
 {
     fn get_inputs_ptr(&mut self) -> usize {
@@ -118,7 +118,30 @@ where
     fn process(&mut self) {
         // clear outputs
         self.outputs = [[[0.0; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_OUTPUTS];
-        self.processor.process(&self.inputs, &mut self.outputs, &self.parameters, &self.events);
+
+        // map [[[f32; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_INPUTS] -> [[&[f32]; NUM_CHANNELS]; NUM_INPUTS]
+        let inputs = 
+            self
+                .inputs
+                .each_ref()
+                .map(|input| 
+                    input
+                        .each_ref()
+                        .map(|channel| channel.as_ref())
+                );
+
+        // map [[[f32; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_OUTPUTS] -> [[&[f32]; NUM_CHANNELS]; NUM_OUTPUTS]
+        let outputs =
+                self
+                    .outputs
+                    .each_mut()
+                    .map(|output|
+                        output
+                            .each_mut()
+                            .map(|channel| channel.as_mut())
+                    );
+        
+        self.processor.process(&inputs, outputs, &self.parameters, &self.events);
         self.events.clear();
     }
 
@@ -133,7 +156,7 @@ where
 
 impl<F, Params, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, S> IntoWasmProcessorImplementation<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S> for F
 where 
-    F: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, PROCESSOR_BLOCK_LENGTH, NUM_PARAMS, Params, S>,
+    F: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>,
     Params: 'static,
     S: 'static + Default
 {

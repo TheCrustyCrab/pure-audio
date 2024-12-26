@@ -1,54 +1,49 @@
-use std::ops::{Deref, DerefMut};
+use std::ops::Deref;
 
-pub type Buffer<const SIZE: usize, const NUM_CHANNELS: usize, const BLOCK_SIZE: usize> =
-    [[[f32; BLOCK_SIZE]; NUM_CHANNELS]; SIZE];
+pub type Buffer<'a, const SIZE: usize, const NUM_CHANNELS: usize> =
+    [[&'a [f32]; NUM_CHANNELS]; SIZE];
 
-pub struct InputBuffer<'a, const SIZE: usize, const NUM_CHANNELS: usize, const BLOCK_SIZE: usize>(
-    pub &'a Buffer<SIZE, NUM_CHANNELS, BLOCK_SIZE>,
+pub type BufferMut<'a, const SIZE: usize, const NUM_CHANNELS: usize> =
+    [[&'a mut [f32]; NUM_CHANNELS]; SIZE];
+
+pub struct InputBuffer<'a, const SIZE: usize, const NUM_CHANNELS: usize>(
+    pub &'a Buffer<'a, SIZE, NUM_CHANNELS>,
 );
 
-impl<'a, const SIZE: usize, const NUM_CHANNELS: usize, const BLOCK_SIZE: usize> InputBuffer<'a, SIZE, NUM_CHANNELS, BLOCK_SIZE> {
+impl<'a, const SIZE: usize, const NUM_CHANNELS: usize> InputBuffer<'a, SIZE, NUM_CHANNELS> {
     #[inline]
-    pub fn new(data: &'a Buffer<SIZE, NUM_CHANNELS, BLOCK_SIZE>) -> Self {
+    pub fn new(data: &'a Buffer<SIZE, NUM_CHANNELS>) -> Self {
         Self(data)
     }
 }
 
-impl<'a, const SIZE: usize, const NUM_CHANNELS: usize, const BLOCK_SIZE: usize> Deref
-    for InputBuffer<'a, SIZE, NUM_CHANNELS, BLOCK_SIZE>
+impl<'a, const SIZE: usize, const NUM_CHANNELS: usize> Deref
+    for InputBuffer<'a, SIZE, NUM_CHANNELS>
 {
-    type Target = Buffer<SIZE, NUM_CHANNELS, BLOCK_SIZE>;
+    type Target = Buffer<'a, SIZE, NUM_CHANNELS>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-pub struct OutputBuffer<'a, const SIZE: usize, const NUM_CHANNELS: usize, const BLOCK_SIZE: usize>(
-    pub &'a mut Buffer<SIZE, NUM_CHANNELS, BLOCK_SIZE>,
+pub struct OutputBuffer<'a, const SIZE: usize, const NUM_CHANNELS: usize>(
+    pub BufferMut<'a, SIZE, NUM_CHANNELS>,
 );
 
-impl<'a, const SIZE: usize, const NUM_CHANNELS: usize, const BLOCK_SIZE: usize> OutputBuffer<'a, SIZE, NUM_CHANNELS, BLOCK_SIZE> {
+impl<'a, const SIZE: usize, const NUM_CHANNELS: usize> OutputBuffer<'a, SIZE, NUM_CHANNELS> {
     #[inline]
-    pub fn new(data: &'a mut Buffer<SIZE, NUM_CHANNELS, BLOCK_SIZE>) -> Self {
+    pub fn new(data: BufferMut<'a, SIZE, NUM_CHANNELS>) -> Self {
         Self(data)
     }
 }
 
-impl<'a, const SIZE: usize, const NUM_CHANNELS: usize, const BLOCK_SIZE: usize> Deref
-    for OutputBuffer<'a, SIZE, NUM_CHANNELS, BLOCK_SIZE>
+impl<'a, const SIZE: usize, const NUM_CHANNELS: usize> Deref
+    for OutputBuffer<'a, SIZE, NUM_CHANNELS>
 {
-    type Target = Buffer<SIZE, NUM_CHANNELS, BLOCK_SIZE>;
+    type Target = BufferMut<'a, SIZE, NUM_CHANNELS>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
-    }
-}
-
-impl<'a, const SIZE: usize, const NUM_CHANNELS: usize, const BLOCK_SIZE: usize> DerefMut
-    for OutputBuffer<'a, SIZE, NUM_CHANNELS, BLOCK_SIZE>
-{
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
     }
 }
