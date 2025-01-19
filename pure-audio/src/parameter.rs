@@ -1,8 +1,10 @@
-use std::fmt::Display;
+use std::fmt::{Display, Write};
 
 pub trait FromParameters {
     const DESCRIPTOR: ParameterDescriptor;
     fn from_parameters(parameters: &[f32], index: usize) -> Self;
+    fn text_to_value(text: &str) -> Option<f64>;
+    fn value_to_text(value: f64, writer: &mut impl Write) -> bool;
 }
 
 #[derive(Copy, Clone)]
@@ -32,6 +34,8 @@ pub struct ParameterDescriptor {
 pub trait ProcessorParameter {
     const DESCRIPTOR: ParameterDescriptor;
     fn from_parameter(value: f32) -> Self;
+    fn text_to_value(text: &str) -> Option<f64>;
+    fn value_to_text(value: f64, writer: &mut impl Write) -> bool;
 }
 
 impl<P: ProcessorParameter> FromParameters for P {
@@ -40,5 +44,15 @@ impl<P: ProcessorParameter> FromParameters for P {
     #[inline]
     fn from_parameters(parameters: &[f32], index: usize) -> Self {
         P::from_parameter(parameters[index])
-    }    
+    }
+    
+    #[inline]
+    fn text_to_value(text: &str) -> Option<f64> {
+        P::text_to_value(text)
+    }
+
+    #[inline]
+    fn value_to_text(value: f64, writer: &mut impl Write) -> bool {
+        P::value_to_text(value, writer)
+    }
 }

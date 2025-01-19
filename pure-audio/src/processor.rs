@@ -1,7 +1,7 @@
 use crate::{
     event::Event, AudioData, FromParameters, InputBuffer, OutputBuffer, ParameterDescriptor
 };
-use std::marker::PhantomData;
+use std::{fmt::Write, marker::PhantomData};
 
 pub trait Processor<
     const NUM_INPUTS: usize,
@@ -22,6 +22,8 @@ pub trait Processor<
         events: &'a [Event]
     ) {
     }
+
+    fn set_sample_rate(&mut self, sample_rate: f32);
 }
 
 pub struct ProcessorWrapper<
@@ -77,17 +79,15 @@ pub trait IntoProcessor<
     S,
 >
 {
+    type Out: 'static + Processor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params>;
     fn get_parameter_descriptors() -> [ParameterDescriptor; NUM_PARAMS];
+    const PARAM_DESCRIPTORS: [ParameterDescriptor; NUM_PARAMS];
     fn into_processor(
         self,
         sample_rate: f32,
-    ) -> impl Processor<
-        NUM_INPUTS,
-        NUM_OUTPUTS,
-        NUM_CHANNELS,
-        NUM_PARAMS,
-        Params,
-    >;
+    ) -> Self::Out;
+    fn parameter_text_to_value(index: usize, text: &str) -> Option<f64>;
+    fn parameter_value_to_text(index: usize, value: f64, writer: &mut impl Write) -> bool;
 }
 
 // 0 parameters
@@ -115,6 +115,11 @@ where
         };
         (self.f)(data)
     }
+    
+    #[inline]
+    fn set_sample_rate(&mut self, sample_rate: f32) {
+        self.sample_rate = sample_rate;
+    }
 }
 
 impl<F, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, S>
@@ -122,7 +127,9 @@ impl<F, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: u
 where
     F: 'static + FnMut(AudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, S>),
     S: 'static + Default,
-{
+{    
+    type Out = ProcessorWrapper<F, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, 0, (), S>;
+    const PARAM_DESCRIPTORS: [ParameterDescriptor; 0] = [];
     fn get_parameter_descriptors() -> [ParameterDescriptor; 0] {
         []
     }
@@ -130,8 +137,16 @@ where
     fn into_processor(
         self,
         sample_rate: f32,
-    ) -> impl Processor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, 0, ()> {
+    ) -> Self::Out {
         ProcessorWrapper::new(self, sample_rate, S::default())
+    }
+    
+    fn parameter_text_to_value(index: usize, text: &str) -> Option<f64> {
+        None
+    }
+    
+    fn parameter_value_to_text(index: usize, value: f64, writer: &mut impl Write) -> bool {
+        false
     }
 }
 
@@ -168,6 +183,11 @@ where
         };
         (self.f)(data, p1);
     }
+    
+    #[inline]
+    fn set_sample_rate(&mut self, sample_rate: f32) {
+        self.sample_rate = sample_rate;
+    }
 }
 
 impl<
@@ -183,6 +203,8 @@ where
     P1: 'static + FromParameters,
     S: 'static + Default,
 {
+    type Out = ProcessorWrapper<F, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, 1, (P1,), S>;
+    const PARAM_DESCRIPTORS: [ParameterDescriptor; 1] = [P1::DESCRIPTOR];
     fn get_parameter_descriptors() -> [ParameterDescriptor; 1] {
         [P1::DESCRIPTOR]
     }
@@ -190,8 +212,16 @@ where
     fn into_processor(
         self,
         sample_rate: f32,
-    ) -> impl Processor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, 1, (P1,)> {
+    ) -> Self::Out {
         ProcessorWrapper::new(self, sample_rate, S::default())
+    }
+    
+    fn parameter_text_to_value(index: usize, text: &str) -> Option<f64> {
+        P1::text_to_value(text)
+    }
+    
+    fn parameter_value_to_text(index: usize, value: f64, writer: &mut impl Write) -> bool {
+        P1::value_to_text(value, writer)
     }
 }
 
@@ -240,6 +270,11 @@ where
         };
         (self.f)(data, p1, p2);
     }
+    
+    #[inline]
+    fn set_sample_rate(&mut self, sample_rate: f32) {
+        self.sample_rate = sample_rate;
+    }
 }
 
 impl<
@@ -258,6 +293,8 @@ where
     P2: 'static + FromParameters,
     S: 'static + Default,
 {
+    type Out = ProcessorWrapper<F, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, 2, (P1, P2), S>;
+    const PARAM_DESCRIPTORS: [ParameterDescriptor; 2] = [P1::DESCRIPTOR, P2::DESCRIPTOR];
     fn get_parameter_descriptors() -> [ParameterDescriptor; 2] {
         [P1::DESCRIPTOR, P2::DESCRIPTOR]
     }
@@ -265,7 +302,15 @@ where
     fn into_processor(
         self,
         sample_rate: f32,
-    ) -> impl Processor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, 2, (P1, P2)> {
+    ) -> Self::Out {
         ProcessorWrapper::new(self, sample_rate, S::default())
+    }
+    
+    fn parameter_text_to_value(index: usize, text: &str) -> Option<f64> {
+        [P1::text_to_value, P2::text_to_value][index](text)
+    }
+    
+    fn parameter_value_to_text(index: usize, value: f64, writer: &mut impl Write) -> bool {
+        [P1::value_to_text, P2::value_to_text][index](value, writer)        
     }
 }

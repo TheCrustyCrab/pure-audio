@@ -34,7 +34,6 @@ impl Voice {
 
 #[derive(Default)]
 pub struct OscillatorState {
-    active: bool,
     voices: HashMap<u8, Voice>
 }
 
@@ -43,25 +42,19 @@ pub fn process(
         events,
         outputs: OutputBuffer([[output]]),
         sample_rate,
-        state: OscillatorState { active, voices },
+        state: OscillatorState { voices },
         ..
     }: AudioData<0, 1, 1, OscillatorState>
 ) {
     for event in events {
         match event {
             &pure_audio::Event::NoteOn { key, velocity } => {
-                *active = true;
                 voices.insert(key, Voice::new(key, velocity, sample_rate));
             },
             pure_audio::Event::NoteOff { key, .. } => {
                 voices.remove(key);
-                *active = voices.len() > 0;
             },
         }
-    }
-
-    if !*active {
-        return;
     }
 
     let gain_per_voice = 1.0 / voices.len() as f32;

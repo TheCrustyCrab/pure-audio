@@ -1,12 +1,15 @@
 [workspace]
 members = [
     "pure-audio",
+    "pure-audio-clap",
     "pure-audio-wasm"
 ]
 exclude = [
     "examples/gain",
+    "examples/gain-clap",
     "examples/gain-web",
     "examples/oscillator",
+    "examples/oscillator-clap",
     "examples/oscillator-web"
 ]
 resolver = "2"
