@@ -61,6 +61,9 @@ dependencies = [
 [[package]]
 name = "pure-audio"
 version = "0.1.0"
+dependencies = [
+ "pure-audio-proc-macro",
+]
 
 [[package]]
 name = "pure-audio-clap"
@@ -70,6 +73,15 @@ dependencies = [
  "byte-strings",
  "clap-sys",
  "pure-audio",
+]
+
+[[package]]
+name = "pure-audio-proc-macro"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

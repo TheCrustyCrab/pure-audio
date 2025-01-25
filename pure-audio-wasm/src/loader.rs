@@ -71,7 +71,7 @@ where
             .join("\n");
 
     let (parameter_descriptors, parameter_values): (Vec<_>, Vec<_>) = 
-        F::get_parameter_descriptors()
+        F::PARAM_DESCRIPTORS
             .iter()
             .map(|&ParameterDescriptor { name, default_value, min_value, max_value, automation_rate }| {
                 (format!(

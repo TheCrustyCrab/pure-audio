@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "pure-audio",
+    "pure-audio/src/macros",
     "pure-audio-clap",
     "pure-audio-wasm"
 ]

@@ -3,3 +3,6 @@ name = "pure-audio"
 description = "Audio processing with pure functions"
 version = "0.1.0"
 edition = "2021"
+
+[dependencies]
+pure-audio-proc-macro = { path = "src/macros" }

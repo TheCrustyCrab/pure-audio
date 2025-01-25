@@ -76,12 +76,12 @@ impl<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: u
 }
 
 pub trait IntoWasmProcessor<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S> {
-    fn get_parameter_descriptors() -> [ParameterDescriptor; NUM_PARAMS];
+    const PARAM_DESCRIPTORS: [ParameterDescriptor; NUM_PARAMS];
     fn into_wasm_processor(self, sample_rate: f32) -> WasmProcessor;
 }
 
 pub trait IntoWasmProcessorImplementation<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S> {
-    fn get_parameter_descriptors() -> [ParameterDescriptor; NUM_PARAMS];
+    const PARAM_DESCRIPTORS: [ParameterDescriptor; NUM_PARAMS];
     fn into_wasm_processor_implementation(self, sample_rate: f32) -> impl WasmProcessorImplementation;
 }
 
@@ -89,12 +89,10 @@ impl<I, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: u
 where
     I: IntoWasmProcessorImplementation<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>
 {
+    const PARAM_DESCRIPTORS: [ParameterDescriptor; NUM_PARAMS] = I::PARAM_DESCRIPTORS;
+
     fn into_wasm_processor(self, sample_rate: f32) -> WasmProcessor {
         WasmProcessor::new(Box::new(self.into_wasm_processor_implementation(sample_rate)))
-    }
-    
-    fn get_parameter_descriptors() -> [ParameterDescriptor; NUM_PARAMS] {
-        I::get_parameter_descriptors()
     }
 }
 
@@ -159,10 +157,8 @@ where
     F: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>,
     Params: 'static,
     S: 'static + Default
-{
-    fn get_parameter_descriptors() -> [ParameterDescriptor; NUM_PARAMS] {
-        F::get_parameter_descriptors()
-    }
+{    
+    const PARAM_DESCRIPTORS: [ParameterDescriptor; NUM_PARAMS] = F::PARAM_DESCRIPTORS;
 
     fn into_wasm_processor_implementation(self, sample_rate: f32) -> impl WasmProcessorImplementation {
         WasmProcessorWrapper::new(self.into_processor(sample_rate))
