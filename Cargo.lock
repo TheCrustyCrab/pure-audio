@@ -15,6 +15,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
 
 [[package]]
+name = "byte-strings"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "002ee5531feb8450e59862fefa550eeac39b726d60b186071672751045ebc29a"
+dependencies = [
+ "byte-strings-proc_macros",
+]
+
+[[package]]
+name = "byte-strings-proc_macros"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62f7e0e71f98d6c71bfe42b0a7a47d0f870ad808401fad2d44fa156ed5b0ae03"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -71,6 +91,7 @@ name = "pure-audio-clap"
 version = "0.1.0"
 dependencies = [
  "atomic_float",
+ "byte-strings",
  "clap-sys",
  "pure-audio",
 ]

@@ -26,7 +26,7 @@ impl<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: u
 where 
     P: 'static + Copy + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>
 {
-    pub const fn new(id: &'static CStr, name: &'static CStr, is_instrument: bool, p: P) -> Self {
+    pub const fn new(id: &'static CStr, name: &'static CStr, p: P) -> Self {
         Self {
             inner: clap_plugin_factory {
                 create_plugin: Some(Self::create_plugin),
@@ -43,7 +43,7 @@ where
                 support_url: c"".as_ptr(),
                 version: c"".as_ptr(),
                 description: c"".as_ptr(),
-                features: if is_instrument { FEATURES_INSTRUMENT.as_ptr() } else { FEATURES_EFFECT.as_ptr() },
+                features: if NUM_INPUTS == 0 { FEATURES_INSTRUMENT.as_ptr() } else { FEATURES_EFFECT.as_ptr() },
             },
             p,
             marker: PhantomData
@@ -60,7 +60,7 @@ where
     // Returns null in case of error.
     // The descriptor must not be freed.
     // [thread-safe]
-    unsafe extern "C" fn get_plugin_descriptor(factory: *const clap_plugin_factory, index: u32) -> *const clap_plugin_descriptor {
+    unsafe extern "C" fn get_plugin_descriptor(factory: *const clap_plugin_factory, _index: u32) -> *const clap_plugin_descriptor {
         &Self::get_factory(factory).descriptor
     }
 
@@ -69,7 +69,7 @@ where
     // The plugin is not allowed to use the host callbacks in the create method.
     // Returns null in case of error.
     // [thread-safe]
-    unsafe extern "C" fn create_plugin(factory: *const clap_plugin_factory, host: *const clap_host, id: *const i8) -> *const clap_plugin {
+    unsafe extern "C" fn create_plugin(factory: *const clap_plugin_factory, _host: *const clap_host, id: *const i8) -> *const clap_plugin {
         let factory = Self::get_factory(factory);
         let descriptor = &factory.descriptor;
         if CStr::from_ptr(id) == CStr::from_ptr(descriptor.id) {

@@ -10,11 +10,11 @@ pub trait Extensions<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NU
     const EXT_NOTE_PORTS: clap_plugin_note_ports;
     const EXT_PARAMS: clap_plugin_params;
 
-    unsafe extern "C" fn audio_count(clap_plugin: *const clap_plugin, is_input: bool) -> u32 {
+    unsafe extern "C" fn audio_count(_clap_plugin: *const clap_plugin, is_input: bool) -> u32 {
         if is_input { NUM_INPUTS as u32 } else { NUM_OUTPUTS as u32 }
     }
     
-    unsafe extern "C" fn audio_get(clap_plugin: *const clap_plugin, index: u32, is_input: bool, info: *mut clap_audio_port_info) -> bool {
+    unsafe extern "C" fn audio_get(_clap_plugin: *const clap_plugin, index: u32, is_input: bool, info: *mut clap_audio_port_info) -> bool {
         let max_index = if is_input { NUM_INPUTS } else { NUM_OUTPUTS };
         if index as usize + 1  > max_index {
             false
@@ -32,12 +32,12 @@ pub trait Extensions<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NU
         }
     }
     
-    unsafe extern "C" fn note_count(clap_plugin: *const clap_plugin, is_input: bool) -> u32 {
+    unsafe extern "C" fn note_count(_clap_plugin: *const clap_plugin, is_input: bool) -> u32 {
         // currently fixed 1 note input
         if is_input { 1 } else { 0 }
     }
     
-    unsafe extern "C" fn note_get(clap_plugin: *const clap_plugin, index: u32, is_input: bool, info: *mut clap_note_port_info) -> bool {
+    unsafe extern "C" fn note_get(_clap_plugin: *const clap_plugin, index: u32, is_input: bool, info: *mut clap_note_port_info) -> bool {
         if !is_input || index > 0 {
             false
         } else {
@@ -52,7 +52,7 @@ pub trait Extensions<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NU
 
     // Returns the number of parameters.
     // [main-thread]
-    unsafe extern "C" fn params_count(clap_plugin: *const clap_plugin) -> u32 {
+    unsafe extern "C" fn params_count(_clap_plugin: *const clap_plugin) -> u32 {
         NUM_PARAMS as u32
     }
 }
@@ -96,7 +96,7 @@ where
     // Copies the parameter's info to param_info.
     // Returns true on success.
     // [main-thread]
-    unsafe extern "C" fn params_get_info(clap_plugin: *const clap_plugin, index: u32, info: *mut clap_param_info) -> bool {
+    unsafe extern "C" fn params_get_info(_clap_plugin: *const clap_plugin, index: u32, info: *mut clap_param_info) -> bool {
         if index as usize + 1 > NUM_PARAMS {
             false
         } else {
@@ -127,7 +127,7 @@ where
     // The host can use this to convert user input into a parameter value.
     // Returns true on success.
     // [main-thread]
-    unsafe extern "C" fn params_text_to_value(clap_plugin: *const clap_plugin, id: u32, text: *const c_char, value: *mut f64) -> bool {
+    unsafe extern "C" fn params_text_to_value(_clap_plugin: *const clap_plugin, id: u32, text: *const c_char, value: *mut f64) -> bool {
         match CStr::from_ptr(text).to_str() {
             Ok(text) => {
                 match P::parameter_text_to_value(id as usize, text) {
@@ -147,7 +147,7 @@ where
     // values before displaying it to the user.
     // Returns true on success.
     // [main-thread]
-    unsafe extern "C" fn params_value_to_text(clap_plugin: *const clap_plugin, id: u32, value: f64, out_buffer: *mut c_char, out_buffer_capacity: u32) -> bool {
+    unsafe extern "C" fn params_value_to_text(_clap_plugin: *const clap_plugin, id: u32, value: f64, out_buffer: *mut c_char, out_buffer_capacity: u32) -> bool {
         let out = std::slice::from_raw_parts_mut(out_buffer, out_buffer_capacity as usize);
         P::parameter_value_to_text(id as usize, value, &mut out.writable())
     }
@@ -161,7 +161,7 @@ where
     // lost within flush().
     //
     // [active ? audio-thread : main-thread]
-    unsafe extern "C" fn params_flush(clap_plugin: *const clap_plugin, in_events: *const clap_input_events, out_events: *const clap_output_events) {
+    unsafe extern "C" fn params_flush(clap_plugin: *const clap_plugin, in_events: *const clap_input_events, _out_events: *const clap_output_events) {
         let plugin = get_plugin_data::<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>(clap_plugin);
         plugin.handle_input_events(in_events);
     }
