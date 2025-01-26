@@ -31,14 +31,18 @@ pub struct ParameterDescriptor {
     pub automation_rate: ParameterAutomationRate
 }
 
-pub trait ProcessorParameter {
+pub trait Parameter {
     const DESCRIPTOR: ParameterDescriptor;
     fn from_parameter(value: f32) -> Self;
-    fn text_to_value(text: &str) -> Option<f64>;
-    fn value_to_text(value: f64, writer: &mut impl Write) -> bool;
+    fn text_to_value(text: &str) -> Option<f64> {
+        text.parse::<f64>().ok()
+    }
+    fn value_to_text(value: f64, writer: &mut impl Write) -> bool {
+        write!(writer, "{value}").is_ok()
+    }
 }
 
-impl<P: ProcessorParameter> FromParameters for P {
+impl<P: Parameter> FromParameters for P {
     const DESCRIPTOR: ParameterDescriptor = P::DESCRIPTOR;
 
     #[inline]

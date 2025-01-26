@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{parse::Parse, parse_macro_input, token::Comma, Ident, LitInt};
+use syn::{parse::Parse, parse_macro_input, spanned::Spanned, token::Comma, Expr, Fields, FieldsUnnamed, Ident, Item, ItemStruct, LitFloat, LitInt, LitStr, Token};
 
 struct ForParamsInput {
     macro_ident: Ident,
@@ -146,4 +146,302 @@ pub fn impl_processor(ts: TokenStream) -> TokenStream {
     };
 
     TokenStream::from(implementations)
+}
+
+enum ParameterAttr {
+    Name(LitStr),
+    DefaultValue(LitFloat),
+    MinValue(LitFloat),
+    MaxValue(LitFloat),
+    TextToValue(Expr),
+    ValueToText(Expr)
+}
+
+impl Parse for ParameterAttr {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let key_token = input.parse::<Ident>()?;
+        let key = key_token.to_string();
+        input.parse::<Token![=]>()?;
+        match key.as_ref() {
+            "name" => Ok(ParameterAttr::Name(input.parse()?)),
+            "default" => Ok(ParameterAttr::DefaultValue(input.parse()?)),
+            "min" => Ok(ParameterAttr::MinValue(input.parse()?)),
+            "max" => Ok(ParameterAttr::MaxValue(input.parse()?)),
+            "text_to_value" => Ok(ParameterAttr::TextToValue(input.parse()?)),
+            "value_to_text" => Ok(ParameterAttr::ValueToText(input.parse()?)),
+            _ => Err(syn::Error::new(key_token.span(), format!("attribute '{key}' is not supported")))
+        }
+    }
+}
+
+struct ParameterAttrs {
+    name: Option<String>,
+    default_value: Option<f32>,
+    min_value: Option<f32>,
+    max_value: Option<f32>,
+    text_to_value: Option<Expr>,
+    value_to_text: Option<Expr>
+}
+
+impl Parse for ParameterAttrs {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let attrs = syn::punctuated::Punctuated::<ParameterAttr, Comma>::parse_terminated(input)?;
+        
+        let mut name = None;
+        let mut default_value = None;
+        let mut min_value = None;
+        let mut max_value = None;
+        let mut text_to_value = None;
+        let mut value_to_text = None;
+
+        for attr in attrs {
+            match attr {
+                ParameterAttr::Name(lit_str) => name = Some(lit_str.value()),
+                ParameterAttr::DefaultValue(lit_float) => default_value = Some(lit_float.base10_parse()?),
+                ParameterAttr::MinValue(lit_float) => min_value = Some(lit_float.base10_parse()?),
+                ParameterAttr::MaxValue(lit_float) => max_value = Some(lit_float.base10_parse()?),
+                ParameterAttr::TextToValue(expr) => text_to_value = Some(expr),
+                ParameterAttr::ValueToText(expr) => value_to_text = Some(expr)
+            }
+        }
+
+        Ok(Self {
+            name,
+            default_value,
+            min_value,
+            max_value,
+            text_to_value,
+            value_to_text
+        })
+    }
+}
+
+/// Implements the [`Parameter`] trait for a parameter type.
+/// The type must be a tuple struct with a single float field.
+/// The following optional attributes can be provided:
+/// - name: string literal (default: name of the type)
+/// - default: float literal (default: 1.0)
+/// - min: float literal (default: 0.0)
+/// - max: float literal (default: 1.0)
+/// - text_to_value: expression refering to a fn(&str) -> Option<f64> (default: built-in float parsing)
+/// - value_to_text: expression refering to a fn(f64, &mut std::fmt::Write) -> bool (default: built-in float formatting)
+#[proc_macro_attribute]
+pub fn parameter(attr: TokenStream, input: TokenStream) -> TokenStream {
+    match syn::parse::<syn::Item>(input) {
+        Ok(item) => {
+            if let Item::Struct(ref s) = item {
+                let ItemStruct { ident, fields: Fields::Unnamed(FieldsUnnamed { unnamed, .. }), .. } = s else {
+                    return TokenStream::from(syn::Error::new(item.span(), "type must be a tuple struct with a single field").into_compile_error());
+                };
+
+                if unnamed.len() != 1 {
+                    return TokenStream::from(syn::Error::new(item.span(), "type must be a tuple struct with a single field").into_compile_error());
+                }
+                // todo: validate that the single unnamed field is f32/f64
+                let struct_name = &ident;
+                let ParameterAttrs { name, default_value, min_value, max_value, text_to_value, value_to_text }  = parse_macro_input!(attr as ParameterAttrs);
+
+                let name = name.unwrap_or(struct_name.to_string());
+                let default_value = default_value.unwrap_or(1.0);
+                let min_value = min_value.unwrap_or(0.0);
+                let max_value = max_value.unwrap_or(1.0);
+                let text_to_value = if let Some(expr) = text_to_value {
+                    quote! {
+                        #[inline]
+                        fn text_to_value(text: &str) -> Option<f64> {
+                            #expr(text) 
+                        }
+                    }
+                } else {
+                    quote! { }
+                };
+                let value_to_text = if let Some(expr) = value_to_text {
+                    quote! { 
+                        #[inline]
+                        fn value_to_text(value: f64, writer: &mut impl std::fmt::Write) -> bool {
+                            #expr(value, writer)
+                        } 
+                    }
+                } else {
+                    quote! { }
+                };
+        
+                let implementation = quote! {
+                    #[derive(Copy, Clone)] 
+                    #[pure_audio::pure_audio_proc_macro::parameter_arithmetic]
+                    #s
+        
+                    impl pure_audio::Parameter for #struct_name {
+                        const DESCRIPTOR: pure_audio::ParameterDescriptor = pure_audio::ParameterDescriptor {
+                            name: #name,
+                            default_value: #default_value,
+                            min_value: #min_value,
+                            max_value: #max_value,
+                            automation_rate: pure_audio::ParameterAutomationRate::K
+                        };
+                        
+                        #[inline]
+                        fn from_parameter(value: f32) -> Self {
+                            Self(value)
+                        }
+                        
+                        #text_to_value
+
+                        #value_to_text
+                    }
+                };
+
+                TokenStream::from(implementation)
+            } else {
+                TokenStream::from(syn::Error::new(item.span(), "type not supported").into_compile_error())
+            }
+        },
+        Err(err) => {
+            TokenStream::from(err.into_compile_error())
+        },
+    }
+}
+
+/// Implements arithmetic operators for a parameter.
+#[proc_macro_attribute]
+pub fn parameter_arithmetic(_attr: TokenStream, input: TokenStream) -> TokenStream {
+    let item = syn::parse::<syn::Item>(input).unwrap();
+    if let syn::Item::Struct(s) = item {
+        let name = &s.ident;
+        let implementation = quote! {
+            #s
+
+            impl std::ops::Add<f32> for #name {
+                type Output = f32;
+            
+                fn add(self, rhs: f32) -> Self::Output {
+                    self.0 + rhs
+                }
+            }
+            
+            impl std::ops::Add<&f32> for #name {
+                type Output = f32;
+            
+                fn add(self, rhs: &f32) -> Self::Output {
+                    self.0 + rhs
+                }
+            }
+            
+            impl std::ops::Add<#name> for f32 {
+                type Output = f32;
+            
+                fn add(self, rhs: #name) -> Self::Output {
+                    self + rhs.0
+                }
+            }
+            
+            impl std::ops::Add<#name> for &f32 {
+                type Output = f32;
+            
+                fn add(self, rhs: #name) -> Self::Output {
+                    self + rhs.0
+                }
+            }
+    
+            impl std::ops::Div<f32> for #name {
+                type Output = f32;
+            
+                fn div(self, rhs: f32) -> Self::Output {
+                    self.0 / rhs
+                }
+            }
+            
+            impl std::ops::Div<&f32> for #name {
+                type Output = f32;
+            
+                fn div(self, rhs: &f32) -> Self::Output {
+                    self.0 / rhs
+                }
+            }
+            
+            impl std::ops::Div<#name> for f32 {
+                type Output = f32;
+            
+                fn div(self, rhs: #name) -> Self::Output {
+                    self / rhs.0
+                }
+            }
+            
+            impl std::ops::Div<#name> for &f32 {
+                type Output = f32;
+            
+                fn div(self, rhs: #name) -> Self::Output {
+                    self / rhs.0
+                }
+            }
+    
+            impl std::ops::Mul<f32> for #name {
+                type Output = f32;
+            
+                fn mul(self, rhs: f32) -> Self::Output {
+                    self.0 * rhs
+                }
+            }
+            
+            impl std::ops::Mul<&f32> for #name {
+                type Output = f32;
+            
+                fn mul(self, rhs: &f32) -> Self::Output {
+                    self.0 * rhs
+                }
+            }
+            
+            impl std::ops::Mul<#name> for f32 {
+                type Output = f32;
+            
+                fn mul(self, rhs: #name) -> Self::Output {
+                    self * rhs.0
+                }
+            }
+            
+            impl std::ops::Mul<#name> for &f32 {
+                type Output = f32;
+            
+                fn mul(self, rhs: #name) -> Self::Output {
+                    self * rhs.0
+                }
+            }
+    
+            impl std::ops::Sub<f32> for #name {
+                type Output = f32;
+            
+                fn sub(self, rhs: f32) -> Self::Output {
+                    self.0 - rhs
+                }
+            }
+            
+            impl std::ops::Sub<&f32> for #name {
+                type Output = f32;
+            
+                fn sub(self, rhs: &f32) -> Self::Output {
+                    self.0 - rhs
+                }
+            }
+            
+            impl std::ops::Sub<#name> for f32 {
+                type Output = f32;
+            
+                fn sub(self, rhs: #name) -> Self::Output {
+                    self - rhs.0
+                }
+            }
+            
+            impl std::ops::Sub<#name> for &f32 {
+                type Output = f32;
+            
+                fn sub(self, rhs: #name) -> Self::Output {
+                    self - rhs.0
+                }
+            }
+        };
+    
+        TokenStream::from(implementation)
+    } else {
+        TokenStream::from(syn::Error::new(item.span(), "type not supported").into_compile_error())
+    }
 }
