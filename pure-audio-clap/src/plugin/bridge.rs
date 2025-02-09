@@ -1,4 +1,4 @@
-use std::{array, ffi::{c_void, CStr}, slice};
+use std::{array, ffi::{c_void, CStr}, slice, sync::atomic::Ordering};
 use clap_sys::{ext::{audio_ports::{clap_plugin_audio_ports, CLAP_EXT_AUDIO_PORTS}, note_ports::{clap_plugin_note_ports, CLAP_EXT_NOTE_PORTS}, params::{clap_plugin_params, CLAP_EXT_PARAMS}}, plugin::clap_plugin, process::{clap_process, clap_process_status, CLAP_PROCESS_CONTINUE}};
 use pure_audio::{IntoProcessor, Processor};
 use super::{get_plugin_data, extensions::Extensions, PluginWrapper};
@@ -20,12 +20,12 @@ where
     let _ = Box::from_raw(plugin.plugin_data as *mut PluginWrapper<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>);
 }
 
-pub(crate) unsafe extern "C" fn activate<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S, P>(plugin: *const clap_plugin, sample_rate: f64, _min_frame_count: u32, _max_frame_count: u32) -> bool
+pub(crate) unsafe extern "C" fn activate<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S, P>(plugin: *const clap_plugin, sample_rate: f64, _min_frame_count: u32, max_frame_count: u32) -> bool
 where 
     P: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>
 {
     let this = get_plugin_data::<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>(plugin);
-    this.activate(sample_rate);
+    this.activate(sample_rate, max_frame_count as usize);
     true
 }
 
@@ -61,13 +61,21 @@ where
     let this = get_plugin_data::<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>(plugin);
     let process = &*process;
 
+    // equalize changed a-rate param values again
+    for (changed, values) in this.last_process_changed_parameters.iter_mut().filter(|changed| **changed).zip(this.parameters_per_sample.as_mut().unwrap()) {
+        let values = values.as_mut().unwrap(); // must be initialized at this point
+        let last_value = *values.last().unwrap_unchecked();
+        values.fill(last_value);
+        *changed = false;
+    }
+
     // map events and parameters
     this.handle_input_events(process.in_events);
 
     let frames_count = process.frames_count as usize;
 
     // todo: to avoid conversions, is it better to use f64 for parameters everywhere, including wasm?
-    let parameters = this.parameters.each_ref().map(|p| p.load(std::sync::atomic::Ordering::Relaxed) as f32);
+    let parameters = this.parameters.each_ref().map(|p| p.load(Ordering::Relaxed) as f32);
     
     let inputs = array::from_fn(|input_index|{
         let input_ptr = process.audio_inputs.add(input_index);
@@ -91,7 +99,8 @@ where
         output_channels
     });
 
-    this.processor.process(&inputs, outputs, &parameters, &this.events);
+    let parameters_per_sample = this.parameters_per_sample.as_ref().unwrap().each_ref().map(|p| p.as_ref().map(|p| p.as_slice()));
+    this.processor.process(&inputs, outputs, &parameters, &parameters_per_sample, &this.events);
     this.events.clear();
 
     CLAP_PROCESS_CONTINUE

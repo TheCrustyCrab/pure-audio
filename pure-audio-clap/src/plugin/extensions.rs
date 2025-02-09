@@ -1,6 +1,6 @@
 use clap_sys::{events::{clap_input_events, clap_output_events}, ext::{audio_ports::{clap_audio_port_info, clap_plugin_audio_ports, CLAP_AUDIO_PORT_IS_MAIN}, note_ports::{clap_note_port_info, clap_plugin_note_ports, CLAP_NOTE_DIALECT_CLAP}, params::{clap_param_info, clap_plugin_params, CLAP_PARAM_IS_AUTOMATABLE, CLAP_PARAM_IS_MODULATABLE}}, id::CLAP_INVALID_ID, plugin::clap_plugin};
 use pure_audio::IntoProcessor;
-use std::{ffi::{c_char, CStr}, fmt::Write};
+use std::{ffi::{c_char, CStr}, fmt::Write, sync::atomic::Ordering};
 use crate::util::Writable;
 use super::get_plugin_data;
 
@@ -100,7 +100,7 @@ where
         if index as usize + 1 > NUM_PARAMS {
             false
         } else {
-            let desc = P::PARAM_DESCRIPTORS[index as usize];
+            let (desc, ..) = P::PARAM_DESCRIPTORS[index as usize];
             let info = &mut *info;
             info.id = index;
             // todo: add to ParameterDescriptor if needed (specific to CLAP)
@@ -119,7 +119,8 @@ where
     // [main-thread]
     unsafe extern "C" fn params_get_value(clap_plugin: *const clap_plugin, id: u32, value: *mut f64) -> bool {
         let plugin = get_plugin_data::<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>(clap_plugin);
-        *value = plugin.parameters[id as usize].load(std::sync::atomic::Ordering::Relaxed);
+        *value = plugin.parameters[id as usize].load(Ordering::Relaxed);
+        
         true
     }
 

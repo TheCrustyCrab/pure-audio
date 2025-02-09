@@ -1,9 +1,9 @@
 use crate::{es_module::{ImportMeta, IMPORT_META}, IntoWasmProcessor, PureAudioWorkletNode, PROCESSOR_BLOCK_LENGTH};
 use js_sys::{Array, Reflect};
-use pure_audio::ParameterDescriptor;
+use pure_audio::{AutomationRate, ParameterDescriptor};
 use wasm_bindgen::{JsCast, JsValue, UnwrapThrowExt};
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{console::log_1, AudioContext, AudioWorkletNodeOptions, Blob, BlobPropertyBag, Url};
+use web_sys::{console::log_1, AudioContext, AudioWorkletNodeOptions, Blob, BlobPropertyBag, ChannelCountMode, Url};
 
 const AUDIO_CONTEXT_REGISTERED_MODULES_FIELD_NAME: &'static str = "registeredModules";
 
@@ -29,7 +29,7 @@ where
         registered_modules.push(&name.into());
     }
 
-    create_node(name, NUM_INPUTS, NUM_OUTPUTS, ctx)
+    create_node(name, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, ctx)
 }
 
 async fn register_node<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, F, Params, S>(
@@ -52,9 +52,12 @@ where
         (
             "if (inputs.every(i => i.length === 0) || outputs[0].length < 1) return true;",
             (0..NUM_INPUTS)
-                .map(|i| {
-                    let offset = i * NUM_CHANNELS * PROCESSOR_BLOCK_LENGTH;
-                    format!("this.float32Memory.set(inputs[{i}][0] || new Float32Array({PROCESSOR_BLOCK_LENGTH}), this.inputsPtr + {offset});")
+                .flat_map(|input_index| {
+                    (0..NUM_CHANNELS)
+                        .map(move |channel_index| {
+                            let offset = input_index * NUM_CHANNELS * PROCESSOR_BLOCK_LENGTH + channel_index * PROCESSOR_BLOCK_LENGTH;
+                            format!("this.float32Memory.set(inputs[{input_index}][{channel_index}] || new Float32Array({PROCESSOR_BLOCK_LENGTH}), this.inputsPtr + {offset});")
+                        })
                 })
                 .collect::<Vec<_>>()
                 .join("\n")
@@ -63,9 +66,35 @@ where
 
     let process_copy_output = 
         (0..NUM_OUTPUTS)
-            .map(|i| {
-                let offset = i * NUM_CHANNELS * PROCESSOR_BLOCK_LENGTH;
-                format!("outputs[{i}][0].set(this.float32Memory.subarray(this.outputsPtr + {offset}, this.outputsPtr + {offset} + {PROCESSOR_BLOCK_LENGTH}));")
+            .flat_map(|output_index| {
+                (0..NUM_CHANNELS)
+                    .map(move |channel_index| {
+                        let offset = output_index * NUM_CHANNELS * PROCESSOR_BLOCK_LENGTH + channel_index * PROCESSOR_BLOCK_LENGTH;
+                        format!("outputs[{output_index}][{channel_index}].set(this.float32Memory.subarray(this.outputsPtr + {offset}, this.outputsPtr + {offset} + {PROCESSOR_BLOCK_LENGTH}));")
+                    })
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+    let process_copy_parameters_per_sample = 
+        F::PARAM_DESCRIPTORS
+            .iter()
+            .enumerate()
+            .filter(|(.., (.., automation_rate))| if let AutomationRate::A = automation_rate { true } else { false })
+            .map(|(i, (desc, ..))| {
+                let name = desc.name;
+                let data_offset = std::mem::align_of::<Option<[f32; PROCESSOR_BLOCK_LENGTH]>>() / 4;
+                let offset = data_offset + i * (PROCESSOR_BLOCK_LENGTH + data_offset);
+                // for a-rate parameters, the array will only contain multiple (128) values when necessary (e.g. during a linear ramp)
+                format!(
+                    r#"
+                        if (parameters['{name}'].length > 1) {{ 
+                            this.float32Memory.set(parameters['{name}'], this.parametersPerSamplePtr + {offset});
+                        }} else {{
+                            this.float32Memory.fill(parameters['{name}'][0], this.parametersPerSamplePtr + {offset}, this.parametersPerSamplePtr + {offset} + {PROCESSOR_BLOCK_LENGTH});
+                        }}
+                    "#
+                )
             })
             .collect::<Vec<_>>()
             .join("\n");
@@ -73,7 +102,7 @@ where
     let (parameter_descriptors, parameter_values): (Vec<_>, Vec<_>) = 
         F::PARAM_DESCRIPTORS
             .iter()
-            .map(|&ParameterDescriptor { name, default_value, min_value, max_value, automation_rate }| {
+            .map(|&(ParameterDescriptor { name, default_value, min_value, max_value }, automation_rate)| {
                 (format!(
                     r#"{{
                         name: '{name}',
@@ -83,7 +112,7 @@ where
                         automationRate: '{automation_rate}'
                     }}
                     "#
-                ), format!("parameters['{name}'][0]")) // assume k-rate parameters for now
+                ), format!("parameters['{name}'][0]"))
             })
             .unzip();
 
@@ -119,6 +148,7 @@ where
                 this.inputsPtr = this.processor.get_inputs_ptr() / 4; // NUM_INPUTS * NUM_CHANNELS * [f32; 128]
                 this.outputsPtr = this.processor.get_outputs_ptr() / 4; // NUM_OUTPUTS * NUM_CHANNELS * [f32; 128]
                 this.parametersPtr = this.processor.get_parameters_ptr() / 4;
+                this.parametersPerSamplePtr = this.processor.get_parameters_per_sample_ptr() / 4; // NUM_PARAMS * Option<[f32; 128]>
                 this.float32Memory = new Float32Array(memory.buffer);
             }}
 
@@ -127,6 +157,7 @@ where
                 {process_copy_input}
                 const flatParameters = [{parameter_values}];
                 this.float32Memory.set(new Float32Array(flatParameters), this.parametersPtr);
+                {process_copy_parameters_per_sample}
                 this.processor.process();
                 {process_copy_output}
                 return true;
@@ -154,11 +185,13 @@ where
     Ok(())
 }
 
-fn create_node(name: &str, num_inputs: usize, num_outputs: usize, ctx: &AudioContext) -> Result<PureAudioWorkletNode, JsValue> {
+fn create_node(name: &str, num_inputs: usize, num_outputs: usize, num_channels: usize, ctx: &AudioContext) -> Result<PureAudioWorkletNode, JsValue> {
     log_1(&"Creating node".into());
     let mut options = AudioWorkletNodeOptions::new();
     options.number_of_inputs(num_inputs as u32);
     options.number_of_outputs(num_outputs as u32);
+    options.channel_count(num_channels as u32);
+    options.channel_count_mode(ChannelCountMode::Explicit);
     options.processor_options(Some(
         &Array::of2(&wasm_bindgen::module(), &ctx.sample_rate().into())
     ));

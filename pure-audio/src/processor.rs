@@ -1,5 +1,5 @@
 use crate::{
-    event::Event, AudioData, FromParameters, InputBuffer, OutputBuffer, ParameterDescriptor
+    event::Event, AudioData, AutomationRate, FromParameterValues, InputBuffer, OutputBuffer, ParameterDescriptor
 };
 use pure_audio_proc_macro::{for_params, impl_processor};
 use std::{fmt::Write, marker::PhantomData};
@@ -19,7 +19,8 @@ pub trait Processor<
         &'a mut self,
         inputs: &'a [[&'a [f32]; NUM_CHANNELS]; NUM_INPUTS],
         outputs: [[&'a mut [f32]; NUM_CHANNELS]; NUM_OUTPUTS],
-        parameters: &'a [f32; NUM_PARAMS],
+        parameter_single_values: &'a [f32; NUM_PARAMS],
+        parameter_per_sample_values: &'a [Option<&'a [f32]>; NUM_PARAMS],
         events: &'a [Event]
     ) {
     }
@@ -81,7 +82,7 @@ pub trait IntoProcessor<
 >
 {
     type Out: 'static + Processor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params>;
-    const PARAM_DESCRIPTORS: [ParameterDescriptor; NUM_PARAMS];
+    const PARAM_DESCRIPTORS: [(ParameterDescriptor, AutomationRate); NUM_PARAMS];
     fn into_processor(
         self,
         sample_rate: f32,

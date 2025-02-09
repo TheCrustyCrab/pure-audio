@@ -77,9 +77,9 @@ pub fn impl_processor(ts: TokenStream) -> TokenStream {
             > Processor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, #num_params, (#(#generic_idents,)*)>
             for ProcessorWrapper<F, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, #num_params, (#(#generic_idents,)*), S>
         where
-            F: 'static + FnMut(AudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, S>, #(#generic_idents),*),
+            F: 'static + FnMut(AudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, S>, #(#generic_idents),*) + FnMut(AudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, S>, #(#generic_idents ::Out<'_>),*),
             #(
-                #generic_idents: 'static + FromParameters,
+                #generic_idents: 'static + FromParameterValues,
             )*
             S: 'static + Default,
             {
@@ -88,11 +88,12 @@ pub fn impl_processor(ts: TokenStream) -> TokenStream {
                     &'a mut self,
                     inputs: &'a [[&'a [f32]; NUM_CHANNELS]; NUM_INPUTS],
                     outputs: [[&'a mut [f32]; NUM_CHANNELS]; NUM_OUTPUTS],
-                    parameters: &'a [f32; #num_params],
+                    parameter_single_values: &'a [f32; #num_params],
+                    parameter_per_sample_values: &'a [Option<&'a [f32]>; #num_params],
                     events: &'a [Event]
                 ) {
                     #(
-                        let #generic_idents = #generic_idents::from_parameters(parameters, #indices);
+                        let #generic_idents = #generic_idents::from_parameter_values(parameter_single_values, parameter_per_sample_values, #indices);
                     )*
                     let data = AudioData {
                         inputs: InputBuffer::new(inputs),
@@ -119,14 +120,18 @@ pub fn impl_processor(ts: TokenStream) -> TokenStream {
                 S,
             > IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, #num_params, (#(#generic_idents,)*), S> for F
         where
-            F: 'static + FnMut(AudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, S>, #(#generic_idents,)*),
+            F: 'static + FnMut(AudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, S>, #(#generic_idents,)*) + FnMut(AudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, S>, #(#generic_idents ::Out<'_>),*),
             #(
-                #generic_idents: 'static + FromParameters,
+                #generic_idents: 'static + FromParameterValues,
             )*
             S: 'static + Default,
             {
                 type Out = ProcessorWrapper<F, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, #num_params, (#(#generic_idents,)*), S>;
-                const PARAM_DESCRIPTORS: [ParameterDescriptor; #num_params] = [#(#generic_idents::DESCRIPTOR),*];
+                const PARAM_DESCRIPTORS: [(ParameterDescriptor, AutomationRate); #num_params] = [
+                    #(
+                        (#generic_idents::DESCRIPTOR, #generic_idents::AUTOMATION_RATE)
+                    ),*
+                ];
 
                 fn into_processor(
                     self,
@@ -276,8 +281,7 @@ pub fn parameter(attr: TokenStream, input: TokenStream) -> TokenStream {
                             name: #name,
                             default_value: #default_value,
                             min_value: #min_value,
-                            max_value: #max_value,
-                            automation_rate: pure_audio::ParameterAutomationRate::K
+                            max_value: #max_value
                         };
                         
                         #[inline]
