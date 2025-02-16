@@ -1,5 +1,5 @@
 use crate::{
-    event::Event, AudioData, AutomationRate, FromParameterValues, InputBuffer, OutputBuffer, ParameterDescriptor
+    event::Event, AutomationRate, FromParameterValues, FromRawAudioData, InputBuffer, OutputBuffer, ParameterDescriptor
 };
 use pure_audio_proc_macro::{for_params, impl_processor};
 use std::{fmt::Write, marker::PhantomData};
@@ -34,13 +34,14 @@ pub struct ProcessorWrapper<
     const NUM_OUTPUTS: usize,
     const NUM_CHANNELS: usize,
     const NUM_PARAMS: usize,
+    A,
     Params,
     S,
 > {
     f: F,
     sample_rate: f32,
     state: S,
-    marker: PhantomData<Params>,
+    marker: PhantomData<(A, Params)>,
 }
 
 impl<
@@ -49,6 +50,7 @@ impl<
         const NUM_OUTPUTS: usize,
         const NUM_CHANNELS: usize,
         const NUM_PARAMS: usize,
+        A,
         Params,
         S,
     >
@@ -58,6 +60,7 @@ impl<
         NUM_OUTPUTS,
         NUM_CHANNELS,
         NUM_PARAMS,
+        A,
         Params,
         S,
     >
@@ -77,6 +80,7 @@ pub trait IntoProcessor<
     const NUM_OUTPUTS: usize,
     const NUM_CHANNELS: usize,
     const NUM_PARAMS: usize,
+    A,
     Params,
     S,
 >

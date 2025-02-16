@@ -1,5 +1,5 @@
 use pure_audio::{
-    parameter, AudioData, InputBuffer, OutputBuffer, SamplePrecise
+    parameter, MonoEffectData, SamplePrecise, StereoEffectData
 };
 
 #[parameter(text_to_value = volume_text_to_value, value_to_text = volume_value_to_text)]
@@ -22,11 +22,11 @@ fn volume_text_to_value(text: &str) -> Option<f64> {
 }
 
 pub fn process(
-    AudioData {
-        inputs: InputBuffer([[input]]),
-        outputs: OutputBuffer([[output]]),
+    MonoEffectData {
+        input,
+        output,
         ..
-    }: AudioData,
+    }: MonoEffectData,
     volume: Volume,
 ) {
     for (input_sample, output_sample) in input.iter().zip(output) {
@@ -35,11 +35,11 @@ pub fn process(
 }
 
 pub fn process_stereo(
-    AudioData {
-        inputs: InputBuffer([[input_l, input_r]]),
-        outputs: OutputBuffer([[output_l, output_r]]),
+    StereoEffectData {
+        inputs: [input_l, input_r],
+        outputs: [output_l, output_r],
         ..
-    }: AudioData<1, 1, 2, ()>,
+    }: StereoEffectData,
     volume: SamplePrecise<Volume>,
 ) {
     // only left side
@@ -52,11 +52,11 @@ pub fn process_stereo(
 pub struct Pan(f32);
 
 pub fn process_stereo_gain_pan(
-    AudioData {
-        inputs: InputBuffer([[input_l, input_r]]),
-        outputs: OutputBuffer([[output_l, output_r]]),
+    StereoEffectData {
+        inputs: [input_l, input_r],
+        outputs: [output_l, output_r],
         ..
-    }: AudioData<1, 1, 2, ()>,
+    }: StereoEffectData,
     volume: SamplePrecise<Volume>,
     pan: SamplePrecise<Pan>
 ) {

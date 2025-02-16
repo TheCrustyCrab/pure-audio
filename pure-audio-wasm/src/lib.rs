@@ -23,10 +23,11 @@ pub fn create_wasm_processor<
     const NUM_OUTPUTS: usize,
     const NUM_CHANNELS: usize,
     const NUM_PARAMS: usize,
+    A,
     Params,
     S,
 >(
-    process: impl IntoWasmProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>,
+    process: impl IntoWasmProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>,
     sample_rate: f32,
 ) -> WasmProcessor {
     process.into_wasm_processor(sample_rate)

@@ -69,15 +69,17 @@ pub fn impl_processor(ts: TokenStream) -> TokenStream {
     let implementations = quote! {        
         impl<
                 F,
+                A,
                 #(#generic_idents ,)*
                 const NUM_INPUTS: usize,
                 const NUM_OUTPUTS: usize,
                 const NUM_CHANNELS: usize,
                 S,
             > Processor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, #num_params, (#(#generic_idents,)*)>
-            for ProcessorWrapper<F, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, #num_params, (#(#generic_idents,)*), S>
+            for ProcessorWrapper<F, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, #num_params, A, (#(#generic_idents,)*), S>
         where
-            F: 'static + FnMut(AudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, S>, #(#generic_idents),*) + FnMut(AudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, S>, #(#generic_idents ::Out<'_>),*),
+            F: 'static + FnMut(A, #(#generic_idents),*) + FnMut(A::Out<'_>, #(#generic_idents ::Out<'_>),*),
+            A: 'static + FromRawAudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, S>,
             #(
                 #generic_idents: 'static + FromParameterValues,
             )*
@@ -95,13 +97,7 @@ pub fn impl_processor(ts: TokenStream) -> TokenStream {
                     #(
                         let #generic_idents = #generic_idents::from_parameter_values(parameter_single_values, parameter_per_sample_values, #indices);
                     )*
-                    let data = AudioData {
-                        inputs: InputBuffer::new(inputs),
-                        outputs: OutputBuffer::new(outputs),
-                        events,
-                        sample_rate: self.sample_rate,
-                        state: &mut self.state,
-                    };
+                    let data = A::from_raw_audio_data(InputBuffer::new(inputs), OutputBuffer::new(outputs), events, self.sample_rate, &mut self.state);
                     (self.f)(data, #(#generic_idents),*);
                 }
 
@@ -113,20 +109,22 @@ pub fn impl_processor(ts: TokenStream) -> TokenStream {
 
         impl<
                 F,
+                A,
                 #(#generic_idents ,)*
                 const NUM_INPUTS: usize,
                 const NUM_OUTPUTS: usize,
                 const NUM_CHANNELS: usize,
                 S,
-            > IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, #num_params, (#(#generic_idents,)*), S> for F
+            > IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, #num_params, A, (#(#generic_idents,)*), S> for F
         where
-            F: 'static + FnMut(AudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, S>, #(#generic_idents,)*) + FnMut(AudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, S>, #(#generic_idents ::Out<'_>),*),
+            F: 'static + FnMut(A, #(#generic_idents,)*) + FnMut(A::Out<'_>, #(#generic_idents ::Out<'_>),*),
+            A: 'static + FromRawAudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, S>,
             #(
                 #generic_idents: 'static + FromParameterValues,
             )*
             S: 'static + Default,
             {
-                type Out = ProcessorWrapper<F, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, #num_params, (#(#generic_idents,)*), S>;
+                type Out = ProcessorWrapper<F, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, #num_params, A, (#(#generic_idents,)*), S>;
                 const PARAM_DESCRIPTORS: [(ParameterDescriptor, AutomationRate); #num_params] = [
                     #(
                         (#generic_idents::DESCRIPTOR, #generic_idents::AUTOMATION_RATE)

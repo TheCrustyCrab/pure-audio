@@ -5,7 +5,7 @@ use crate::util::Writable;
 use super::get_plugin_data;
 
 // todo: split in module per extension
-pub trait Extensions<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S> {
+pub trait Extensions<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S> {
     const EXT_AUDIO_PORTS: clap_plugin_audio_ports;
     const EXT_NOTE_PORTS: clap_plugin_note_ports;
     const EXT_PARAMS: clap_plugin_params;
@@ -57,9 +57,9 @@ pub trait Extensions<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NU
     }
 }
 
-impl<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S> Extensions<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S> for P
+impl<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S> Extensions<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S> for P
 where
-    P: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>
+    P: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>
 {
     const EXT_AUDIO_PORTS: clap_plugin_audio_ports = clap_plugin_audio_ports {
         count: Some(Self::audio_count),
@@ -81,7 +81,7 @@ where
     };
 }
 
-trait ParamFunctions<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S> {
+trait ParamFunctions<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S> {
     unsafe extern "C" fn params_get_info(clap_plugin: *const clap_plugin, index: u32, info: *mut clap_param_info) -> bool;
     unsafe extern "C" fn params_get_value(clap_plugin: *const clap_plugin, id: u32, value: *mut f64) -> bool;
     unsafe extern "C" fn params_flush(clap_plugin: *const clap_plugin, in_events: *const clap_input_events, out_events: *const clap_output_events);
@@ -89,9 +89,9 @@ trait ParamFunctions<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NU
     unsafe extern "C" fn params_text_to_value(clap_plugin: *const clap_plugin, id: u32, text: *const c_char, value: *mut f64) -> bool;
 }
 
-impl<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S> ParamFunctions<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S> for P
+impl<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S> ParamFunctions<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S> for P
 where
-    P: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>
+    P: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>
 {
     // Copies the parameter's info to param_info.
     // Returns true on success.
@@ -118,7 +118,7 @@ where
     // Returns true on success.
     // [main-thread]
     unsafe extern "C" fn params_get_value(clap_plugin: *const clap_plugin, id: u32, value: *mut f64) -> bool {
-        let plugin = get_plugin_data::<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>(clap_plugin);
+        let plugin = get_plugin_data::<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>(clap_plugin);
         *value = plugin.parameters[id as usize].load(Ordering::Relaxed);
         
         true
@@ -163,7 +163,7 @@ where
     //
     // [active ? audio-thread : main-thread]
     unsafe extern "C" fn params_flush(clap_plugin: *const clap_plugin, in_events: *const clap_input_events, _out_events: *const clap_output_events) {
-        let plugin = get_plugin_data::<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>(clap_plugin);
+        let plugin = get_plugin_data::<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>(clap_plugin);
         plugin.handle_input_events(in_events);
     }
 }

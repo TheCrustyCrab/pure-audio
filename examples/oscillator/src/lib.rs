@@ -1,5 +1,5 @@
 use std::{collections::HashMap, f32::consts::TAU};
-use pure_audio::{AudioData, OutputBuffer};
+use pure_audio::MonoSynthData;
 
 struct Voice {
     phase: f32,
@@ -38,13 +38,12 @@ pub struct OscillatorState {
 }
 
 pub fn process(
-    AudioData {
+    MonoSynthData {
+        output,
         events,
-        outputs: OutputBuffer([[output]]),
         sample_rate,
-        state: OscillatorState { voices },
-        ..
-    }: AudioData<0, 1, 1, OscillatorState>
+        state: OscillatorState { voices }
+    }: MonoSynthData<OscillatorState>
 ) {
     for event in events {
         match event {

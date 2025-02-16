@@ -11,20 +11,20 @@ where
     true
 }
 
-pub(crate) unsafe extern "C" fn destroy<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S, P>(plugin: *const clap_plugin)
+pub(crate) unsafe extern "C" fn destroy<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S, P>(plugin: *const clap_plugin)
 where 
-    P: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>
+    P: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>
 {
     // free plugin and plugin_data
     let plugin = Box::from_raw(plugin as *mut clap_plugin);
-    let _ = Box::from_raw(plugin.plugin_data as *mut PluginWrapper<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>);
+    let _ = Box::from_raw(plugin.plugin_data as *mut PluginWrapper<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>);
 }
 
-pub(crate) unsafe extern "C" fn activate<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S, P>(plugin: *const clap_plugin, sample_rate: f64, _min_frame_count: u32, max_frame_count: u32) -> bool
+pub(crate) unsafe extern "C" fn activate<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S, P>(plugin: *const clap_plugin, sample_rate: f64, _min_frame_count: u32, max_frame_count: u32) -> bool
 where 
-    P: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>
+    P: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>
 {
-    let this = get_plugin_data::<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>(plugin);
+    let this = get_plugin_data::<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>(plugin);
     this.activate(sample_rate, max_frame_count as usize);
     true
 }
@@ -54,11 +54,11 @@ where
 {
 }
 
-pub(crate) unsafe extern "C" fn process<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S, P>(plugin: *const clap_plugin, process: *const clap_process) -> clap_process_status 
+pub(crate) unsafe extern "C" fn process<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S, P>(plugin: *const clap_plugin, process: *const clap_process) -> clap_process_status 
 where 
-    P: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>
+    P: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>
 {
-    let this = get_plugin_data::<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>(plugin);
+    let this = get_plugin_data::<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>(plugin);
     let process = &*process;
 
     // equalize changed a-rate param values again
@@ -106,9 +106,9 @@ where
     CLAP_PROCESS_CONTINUE
 }
 
-pub(crate) unsafe extern "C" fn get_extension<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S, P>(_plugin: *const clap_plugin, id: *const i8) -> *const c_void
+pub(crate) unsafe extern "C" fn get_extension<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S, P>(_plugin: *const clap_plugin, id: *const i8) -> *const c_void
 where 
-    P: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>
+    P: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>
 {
     let id = CStr::from_ptr(id);
     if id == CLAP_EXT_AUDIO_PORTS {

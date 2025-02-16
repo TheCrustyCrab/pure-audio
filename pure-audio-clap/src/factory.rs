@@ -5,11 +5,11 @@ use crate::plugin::{bridge, PluginWrapper};
 
 // layout must match with clap_plugin_factory: repr(C) + clap_plugin_factory as first field
 #[repr(C)]
-pub struct Factory<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S> {
+pub struct Factory<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S> {
     inner: clap_plugin_factory,
     descriptor: clap_plugin_descriptor,
     p: P,
-    marker: PhantomData<(Params, S)>
+    marker: PhantomData<(A, Params, S)>
 }
 
 const FEATURES_EFFECT: &[*const c_char] = &[
@@ -22,9 +22,9 @@ const FEATURES_INSTRUMENT: &[*const c_char] = &[
     core::ptr::null()
 ];
 
-impl<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S> Factory<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>
+impl<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S> Factory<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>
 where 
-    P: 'static + Copy + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S>
+    P: 'static + Copy + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>
 {
     pub const fn new(id: &'static CStr, name: &'static CStr, p: P) -> Self {
         Self {
@@ -78,14 +78,14 @@ where
                 desc: descriptor,
                 plugin_data: Box::into_raw(wrapper).cast(),
                 init: Some(bridge::init::<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S, P::Out>),
-                destroy: Some(bridge::destroy::<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S, P>),
-                activate: Some(bridge::activate::<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S, P>),
+                destroy: Some(bridge::destroy::<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S, P>),
+                activate: Some(bridge::activate::<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S, P>),
                 deactivate: Some(bridge::deactivate::<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S, P::Out>),
                 start_processing: Some(bridge::start_processing::<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S, P::Out>),
                 stop_processing: Some(bridge::stop_processing::<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S, P::Out>),
                 reset: Some(bridge::reset::<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S, P::Out>),
-                process: Some(bridge::process::<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S, P>),
-                get_extension: Some(bridge::get_extension::<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S, P>),
+                process: Some(bridge::process::<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S, P>),
+                get_extension: Some(bridge::get_extension::<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S, P>),
                 on_main_thread: Some(bridge::on_main_thread::<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params, S, P::Out>),
             });
             
