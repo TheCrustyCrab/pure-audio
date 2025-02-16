@@ -6,5 +6,5 @@ edition = "2021"
 [dependencies]
 atomic_float = "1.1.0"
 byte-strings = "0.3.1"
-clap-sys = "0.4.0"
+clap-sys = "0.5.0"
 pure-audio = { path = "../pure-audio" }

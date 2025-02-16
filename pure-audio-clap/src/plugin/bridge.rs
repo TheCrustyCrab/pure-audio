@@ -90,7 +90,7 @@ where
     
     let outputs = array::from_fn(|output_index| {
         let output_ptr = process.audio_outputs.add(output_index);
-        let output_channels_ptr = (*output_ptr).data32 as *const *mut f32;
+        let output_channels_ptr = (*output_ptr).data32;
         let output_channels = array::from_fn(|channel_index| {
             let channel = *(output_channels_ptr.add(channel_index));
             let samples = slice::from_raw_parts_mut(channel, frames_count);
