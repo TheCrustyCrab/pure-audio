@@ -156,7 +156,7 @@ where
                     );
         
         let parameters_per_sample = self.parameters_per_sample.each_ref().map(|p| p.as_ref().map(|p| p.as_slice()));
-        self.processor.process(&inputs, outputs, &self.parameters, &parameters_per_sample, &self.events);
+        self.processor.process(inputs, outputs, &self.parameters, &parameters_per_sample, &self.events);
         self.events.clear();
     }
 

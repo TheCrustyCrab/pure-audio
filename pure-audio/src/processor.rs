@@ -1,5 +1,5 @@
 use crate::{
-    event::Event, AutomationRate, FromParameterValues, FromRawAudioData, InputBuffer, OutputBuffer, ParameterDescriptor
+    event::Event, AutomationRate, FromParameterValues, FromRawAudioData, ParameterDescriptor
 };
 use pure_audio_proc_macro::{for_params, impl_processor};
 use std::{fmt::Write, marker::PhantomData};
@@ -12,12 +12,9 @@ pub trait Processor<
     Params,
 >
 {
-    // currently passing inputs by reference 
-    // and outputs (the container struct with size = NUM_OUTPUTS * NUM_CHANNELS * 2 * word size) with ownership which might not be ideal for performance
-    // reason: passing outputs by mutable reference causes an inconvenient &mut &mut f32 in the process functions
     fn process<'a>(
         &'a mut self,
-        inputs: &'a [[&'a [f32]; NUM_CHANNELS]; NUM_INPUTS],
+        inputs: [[&'a [f32]; NUM_CHANNELS]; NUM_INPUTS],
         outputs: [[&'a mut [f32]; NUM_CHANNELS]; NUM_OUTPUTS],
         parameter_single_values: &'a [f32; NUM_PARAMS],
         parameter_per_sample_values: &'a [Option<&'a [f32]>; NUM_PARAMS],

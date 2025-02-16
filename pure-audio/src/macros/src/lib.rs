@@ -88,7 +88,7 @@ pub fn impl_processor(ts: TokenStream) -> TokenStream {
                 #[inline]
                 fn process<'a>(
                     &'a mut self,
-                    inputs: &'a [[&'a [f32]; NUM_CHANNELS]; NUM_INPUTS],
+                    inputs: [[&'a [f32]; NUM_CHANNELS]; NUM_INPUTS],
                     outputs: [[&'a mut [f32]; NUM_CHANNELS]; NUM_OUTPUTS],
                     parameter_single_values: &'a [f32; #num_params],
                     parameter_per_sample_values: &'a [Option<&'a [f32]>; #num_params],
@@ -97,7 +97,7 @@ pub fn impl_processor(ts: TokenStream) -> TokenStream {
                     #(
                         let #generic_idents = #generic_idents::from_parameter_values(parameter_single_values, parameter_per_sample_values, #indices);
                     )*
-                    let data = A::from_raw_audio_data(InputBuffer::new(inputs), OutputBuffer::new(outputs), events, self.sample_rate, &mut self.state);
+                    let data = A::from_raw_audio_data(inputs, outputs, events, self.sample_rate, &mut self.state);
                     (self.f)(data, #(#generic_idents),*);
                 }
 

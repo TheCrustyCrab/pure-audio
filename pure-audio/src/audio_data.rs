@@ -1,7 +1,4 @@
-use crate::{
-    buffer::{InputBuffer, OutputBuffer},
-    event::Event,
-};
+use crate::event::Event;
 
 pub trait FromRawAudioData<
     const NUM_INPUTS: usize,
@@ -14,8 +11,8 @@ pub trait FromRawAudioData<
     where
         S: 'a;
     fn from_raw_audio_data<'a>(
-        inputs: InputBuffer<'a, NUM_INPUTS, NUM_CHANNELS>,
-        outputs: OutputBuffer<'a, NUM_OUTPUTS, NUM_CHANNELS>,
+        inputs: [[&'a [f32]; NUM_CHANNELS]; NUM_INPUTS],
+        outputs: [[&'a mut [f32]; NUM_CHANNELS]; NUM_OUTPUTS],
         events: &'a [Event],
         sample_rate: f32,
         state: &'a mut S,
@@ -24,13 +21,13 @@ pub trait FromRawAudioData<
 
 pub struct AudioData<
     'a,
-    const NUM_INPUTS: usize = 1,
-    const NUM_OUTPUTS: usize = 1,
-    const NUM_CHANNELS: usize = 1,
+    const NUM_INPUTS: usize,
+    const NUM_OUTPUTS: usize,
+    const NUM_CHANNELS: usize,
     S = (),
 > {
-    pub inputs: InputBuffer<'a, NUM_INPUTS, NUM_CHANNELS>,
-    pub outputs: OutputBuffer<'a, NUM_OUTPUTS, NUM_CHANNELS>,
+    pub inputs: [[&'a [f32]; NUM_CHANNELS]; NUM_INPUTS],
+    pub outputs: [[&'a mut [f32]; NUM_CHANNELS]; NUM_OUTPUTS],
     pub events: &'a [Event],
     pub sample_rate: f32,
     pub state: &'a mut S,
@@ -46,8 +43,8 @@ impl<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usiz
 
     #[inline]
     fn from_raw_audio_data<'a>(
-        inputs: InputBuffer<'a, NUM_INPUTS, NUM_CHANNELS>,
-        outputs: OutputBuffer<'a, NUM_OUTPUTS, NUM_CHANNELS>,
+        inputs: [[&'a [f32]; NUM_CHANNELS]; NUM_INPUTS],
+        outputs: [[&'a mut [f32]; NUM_CHANNELS]; NUM_OUTPUTS],
         events: &'a [Event],
         sample_rate: f32,
         state: &'a mut S,
@@ -77,8 +74,8 @@ impl<S> FromRawAudioData<1, 1, 1, S> for MonoEffectData<'_, S> {
 
     #[inline]
     fn from_raw_audio_data<'a>(
-        InputBuffer([[input]]): InputBuffer<'a, 1, 1>,
-        OutputBuffer([[output]]): OutputBuffer<'a, 1, 1>,
+        [[input]]: [[&'a [f32]; 1]; 1],
+        [[output]]: [[&'a mut [f32]; 1]; 1],
         events: &'a [Event],
         sample_rate: f32,
         state: &'a mut S,
@@ -94,7 +91,7 @@ impl<S> FromRawAudioData<1, 1, 1, S> for MonoEffectData<'_, S> {
 }
 
 pub struct StereoEffectData<'a, S = ()> {
-    pub inputs: &'a [&'a [f32]; 2],
+    pub inputs: [&'a [f32]; 2],
     pub outputs: [&'a mut [f32]; 2],
     pub events: &'a [Event],
     pub sample_rate: f32,
@@ -108,8 +105,8 @@ impl<S> FromRawAudioData<1, 1, 2, S> for StereoEffectData<'_, S> {
 
     #[inline]
     fn from_raw_audio_data<'a>(
-        InputBuffer([inputs]): InputBuffer<'a, 1, 2>,
-        OutputBuffer([outputs]): OutputBuffer<'a, 1, 2>,
+        [inputs]: [[&'a [f32]; 2]; 1],
+        [outputs]: [[&'a mut [f32]; 2]; 1],
         events: &'a [Event],
         sample_rate: f32,
         state: &'a mut S,
@@ -138,8 +135,8 @@ impl<S> FromRawAudioData<0, 1, 1, S> for MonoSynthData<'_, S> {
 
     #[inline]
     fn from_raw_audio_data<'a>(
-        _input: InputBuffer<'a, 0, 1>,
-        OutputBuffer([[output]]): OutputBuffer<'a, 1, 1>,
+        _input: [[&'a [f32]; 1]; 0],
+        [[output]]: [[&'a mut [f32]; 1]; 1],
         events: &'a [Event],
         sample_rate: f32,
         state: &'a mut S,
@@ -167,8 +164,8 @@ impl<S> FromRawAudioData<0, 1, 2, S> for StereoSynthData<'_, S> {
 
     #[inline]
     fn from_raw_audio_data<'a>(
-        _inputs: InputBuffer<'a, 0, 2>,
-        OutputBuffer([outputs]): OutputBuffer<'a, 1, 2>,
+        _inputs: [[&'a [f32]; 2]; 0],
+        [outputs]: [[&'a mut [f32]; 2]; 1],
         events: &'a [Event],
         sample_rate: f32,
         state: &'a mut S,

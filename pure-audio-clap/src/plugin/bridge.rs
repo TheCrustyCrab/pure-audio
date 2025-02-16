@@ -100,7 +100,7 @@ where
     });
 
     let parameters_per_sample = this.parameters_per_sample.as_ref().unwrap().each_ref().map(|p| p.as_ref().map(|p| p.as_slice()));
-    this.processor.process(&inputs, outputs, &parameters, &parameters_per_sample, &this.events);
+    this.processor.process(inputs, outputs, &parameters, &parameters_per_sample, &this.events);
     this.events.clear();
 
     CLAP_PROCESS_CONTINUE
