@@ -1,76 +1,19 @@
-use clap_sys::{events::{clap_input_events, clap_output_events}, ext::{audio_ports::{clap_audio_port_info, clap_plugin_audio_ports, CLAP_AUDIO_PORT_IS_MAIN}, note_ports::{clap_note_port_info, clap_plugin_note_ports, CLAP_NOTE_DIALECT_CLAP}, params::{clap_param_info, clap_plugin_params, CLAP_PARAM_IS_AUTOMATABLE, CLAP_PARAM_IS_MODULATABLE}}, id::CLAP_INVALID_ID, plugin::clap_plugin};
+use std::ffi::CStr;
+use std::{ffi::c_char, sync::atomic::Ordering};
+use std::fmt::Write;
+use clap_sys::{events::{clap_input_events, clap_output_events}, ext::params::{clap_param_info, clap_plugin_params, CLAP_PARAM_IS_AUTOMATABLE, CLAP_PARAM_IS_MODULATABLE}, plugin::clap_plugin};
 use pure_audio::IntoProcessor;
-use std::{ffi::{c_char, CStr}, fmt::Write, sync::atomic::Ordering};
+use crate::plugin::get_plugin_data;
 use crate::util::Writable;
-use super::get_plugin_data;
 
-// todo: split in module per extension
-pub trait Extensions<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S> {
-    const EXT_AUDIO_PORTS: clap_plugin_audio_ports;
-    const EXT_NOTE_PORTS: clap_plugin_note_ports;
+pub trait ParamsExtension<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S> {
     const EXT_PARAMS: clap_plugin_params;
-
-    unsafe extern "C" fn audio_count(_clap_plugin: *const clap_plugin, is_input: bool) -> u32 {
-        if is_input { NUM_INPUTS as u32 } else { NUM_OUTPUTS as u32 }
-    }
-    
-    unsafe extern "C" fn audio_get(_clap_plugin: *const clap_plugin, index: u32, is_input: bool, info: *mut clap_audio_port_info) -> bool {
-        let max_index = if is_input { NUM_INPUTS } else { NUM_OUTPUTS };
-        if index as usize + 1  > max_index {
-            false
-        } else {
-            let info = &mut *info;
-            info.channel_count = NUM_CHANNELS as u32;
-            if index == 0 {
-                info.flags |= CLAP_AUDIO_PORT_IS_MAIN;
-            }
-            info.id = index;
-            info.in_place_pair = CLAP_INVALID_ID;
-            let direction = if is_input { "input" } else { "output" };
-            write!(info.name.writable(), "audio {direction} {index}").unwrap();
-            true
-        }
-    }
-    
-    unsafe extern "C" fn note_count(_clap_plugin: *const clap_plugin, is_input: bool) -> u32 {
-        // currently fixed 1 note input
-        if is_input { 1 } else { 0 }
-    }
-    
-    unsafe extern "C" fn note_get(_clap_plugin: *const clap_plugin, index: u32, is_input: bool, info: *mut clap_note_port_info) -> bool {
-        if !is_input || index > 0 {
-            false
-        } else {
-            let info = &mut *info;
-            info.id = 0;
-            write!(info.name.writable(), "note port 0").unwrap();
-            info.preferred_dialect = CLAP_NOTE_DIALECT_CLAP;
-            info.supported_dialects = CLAP_NOTE_DIALECT_CLAP;
-            true
-        }
-    }
-
-    // Returns the number of parameters.
-    // [main-thread]
-    unsafe extern "C" fn params_count(_clap_plugin: *const clap_plugin) -> u32 {
-        NUM_PARAMS as u32
-    }
 }
 
-impl<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S> Extensions<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S> for P
+impl<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S> ParamsExtension<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S> for P
 where
     P: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>
 {
-    const EXT_AUDIO_PORTS: clap_plugin_audio_ports = clap_plugin_audio_ports {
-        count: Some(Self::audio_count),
-        get: Some(Self::audio_get),
-    };
-
-    const EXT_NOTE_PORTS: clap_plugin_note_ports = clap_plugin_note_ports {
-        count: Some(Self::note_count),
-        get: Some(Self::note_get),
-    };
-
     const EXT_PARAMS: clap_plugin_params = clap_plugin_params {
         count: Some(Self::params_count),
         get_info: Some(Self::params_get_info),
@@ -81,7 +24,12 @@ where
     };
 }
 
-trait ParamFunctions<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S> {
+trait ParamsFunctions<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S> {
+    // Returns the number of parameters.
+    // [main-thread]
+    unsafe extern "C" fn params_count(_clap_plugin: *const clap_plugin) -> u32 {
+        NUM_PARAMS as u32
+    }
     unsafe extern "C" fn params_get_info(clap_plugin: *const clap_plugin, index: u32, info: *mut clap_param_info) -> bool;
     unsafe extern "C" fn params_get_value(clap_plugin: *const clap_plugin, id: u32, value: *mut f64) -> bool;
     unsafe extern "C" fn params_flush(clap_plugin: *const clap_plugin, in_events: *const clap_input_events, out_events: *const clap_output_events);
@@ -89,7 +37,7 @@ trait ParamFunctions<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NU
     unsafe extern "C" fn params_text_to_value(clap_plugin: *const clap_plugin, id: u32, text: *const c_char, value: *mut f64) -> bool;
 }
 
-impl<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S> ParamFunctions<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S> for P
+impl<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S> ParamsFunctions<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S> for P
 where
     P: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>
 {

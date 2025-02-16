@@ -1,7 +1,7 @@
 use std::{array, ffi::{c_void, CStr}, slice, sync::atomic::Ordering};
 use clap_sys::{ext::{audio_ports::{clap_plugin_audio_ports, CLAP_EXT_AUDIO_PORTS}, note_ports::{clap_plugin_note_ports, CLAP_EXT_NOTE_PORTS}, params::{clap_plugin_params, CLAP_EXT_PARAMS}}, plugin::clap_plugin, process::{clap_process, clap_process_status, CLAP_PROCESS_CONTINUE}};
 use pure_audio::{IntoProcessor, Processor};
-use super::{get_plugin_data, extensions::Extensions, PluginWrapper};
+use super::{get_plugin_data, extensions::{audio_ports::AudioPortsExtension, note_ports::NotePortsExtension, params::ParamsExtension}, PluginWrapper};
 
 // bridge between unsafe CLAP API and inner Plugin
 pub(crate) unsafe extern "C" fn init<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S, P>(_plugin: *const clap_plugin) -> bool
