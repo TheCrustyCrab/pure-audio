@@ -67,3 +67,9 @@ pub fn process(
         *sample = sum;
     }
 }
+
+#[cfg(target_arch = "wasm32")]
+pure_audio_wasm::pure_audio_wasm_entry!(Oscillator, process);
+
+#[cfg(not(target_arch = "wasm32"))]
+pure_audio_clap::pure_audio_clap_entry!("pureaudio.Oscillator", "PureAudioOscillator", process);

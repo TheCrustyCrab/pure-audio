@@ -3,14 +3,9 @@ members = [
     "pure-audio",
     "pure-audio/src/macros",
     "pure-audio-clap",
-    "pure-audio-wasm"
-]
-exclude = [
-    "examples/gain",
-    "examples/gain-clap",
-    "examples/gain-web",
+    "pure-audio-wasm",
+    "examples/gain", 
     "examples/oscillator",
-    "examples/oscillator-clap",
-    "examples/oscillator-web"
+    "examples/pan",
 ]
 resolver = "2"

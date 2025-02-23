@@ -22,15 +22,15 @@ jobs:
               run: cargo binstall wasm-bindgen-cli@0.2.95 --no-confirm
 
             - name: Build oscillator example
-              working-directory: examples/oscillator-web
+              working-directory: examples/oscillator
               run: |
                 cargo build --target wasm32-unknown-unknown --release
-                wasm-bindgen target/wasm32-unknown-unknown/release/oscillator_web.wasm --target web --out-dir web --out-name oscillator_loader
+                wasm-bindgen ../../target/wasm32-unknown-unknown/release/oscillator.wasm --target web --out-dir web
 
             - uses: actions/upload-artifact@main
               with:
                 name: dist
-                path: examples/oscillator-web/web
+                path: examples/oscillator/web
     
     deploy:
         runs-on: ubuntu-latest

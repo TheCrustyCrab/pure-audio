@@ -15,12 +15,12 @@
     </div>
     <button id="playButton">Play</button>
     <script type="module">
-        import init, { create_oscillator_node } from "./oscillator_loader.js";
+        import init, { create_oscillator_node } from "./oscillator.js";
 
         async function run() {
             document.body.removeEventListener("click", run);
 
-            await init({ module_or_path: "oscillator_loader_bg.wasm" });
+            await init();
             const ctx = new AudioContext();
             const oscillator = await create_oscillator_node(ctx);
             oscillator.connect(ctx.destination);
