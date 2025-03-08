@@ -1,14 +1,14 @@
 use crate::{es_module::{ImportMeta, IMPORT_META}, IntoWasmProcessor, PureAudioWorkletNode, PROCESSOR_BLOCK_LENGTH};
 use js_sys::{Array, Reflect};
 use pure_audio::{AutomationRate, ParameterDescriptor};
-use wasm_bindgen::{JsCast, JsValue, UnwrapThrowExt};
+use wasm_bindgen::{prelude::Closure, JsCast, JsValue, UnwrapThrowExt};
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{console::log_1, AudioContext, AudioWorkletNodeOptions, Blob, BlobPropertyBag, ChannelCountMode, Url};
+use web_sys::{console::log_1, window, AudioContext, AudioWorkletNodeOptions, Blob, BlobPropertyBag, ChannelCountMode, HtmlInputElement, Url};
 
 const AUDIO_CONTEXT_REGISTERED_MODULES_FIELD_NAME: &'static str = "registeredModules";
 
 pub async fn register_and_create_node<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S, F>(name: &str, 
-    process: F, ctx: &AudioContext)
+    process: F, ctx: &AudioContext, generate_parameter_ui: bool)
 -> Result<PureAudioWorkletNode, JsValue>
 where
     F: IntoWasmProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>
@@ -29,7 +29,38 @@ where
         registered_modules.push(&name.into());
     }
 
-    create_node(name, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, ctx)
+    let audio_worklet_node = create_node(name, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, ctx)?;
+
+    if generate_parameter_ui {
+        let window = window().unwrap();
+        let document = window.document().unwrap();
+        let body = document.body().unwrap();
+        let control = document.create_element("div")?;
+        let param_map = audio_worklet_node.parameters().unwrap();
+        for (ParameterDescriptor { name, default_value, min_value, max_value }, ..) in F::PARAM_DESCRIPTORS {
+            let paragraph = document.create_element("p")?;
+            paragraph.set_text_content(Some(&format!("{name}:")));
+            let slider = document.create_element("input")?.dyn_into::<HtmlInputElement>()?;
+            slider.set_type("range");
+            slider.set_min(&min_value.to_string());
+            slider.set_max(&max_value.to_string());
+            slider.set_value(&default_value.to_string());
+            slider.set_step("0.01");
+            let parameter = param_map.get(name).unwrap();
+            let closure = Closure::<dyn Fn(_)>::new(move |event: web_sys::Event| {
+                let value = event.target().unwrap().dyn_into::<HtmlInputElement>().unwrap().value_as_number();
+                parameter.set_value(value as f32);
+            });
+            slider.add_event_listener_with_callback("change", closure.as_ref().unchecked_ref())?;
+            paragraph.append_child(&slider)?;
+            control.append_child(&paragraph)?;
+             // rely on weak references and the JS GC to drop the closure
+            closure.forget();
+        }
+        body.append_child(&control)?;
+    }
+
+    Ok(audio_worklet_node)
 }
 
 async fn register_node<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, F, A, Params, S>(

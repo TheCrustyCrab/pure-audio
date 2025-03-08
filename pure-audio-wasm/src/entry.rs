@@ -16,7 +16,12 @@ macro_rules! pure_audio_wasm_entry {
                 
                 #[wasm_bindgen]
                 pub async fn [<create_ $name:lower _node>](ctx: &AudioContext) -> PureAudioWorkletNode {
-                    pure_audio_wasm::register_and_create_node(stringify!([<$name:lower>]), $process, ctx).await.unwrap_throw()
+                    pure_audio_wasm::register_and_create_node(stringify!([<$name:lower>]), $process, ctx, false).await.unwrap_throw()
+                }
+                
+                #[wasm_bindgen]
+                pub async fn [<create_ $name:lower _node_with_generated_parameter_ui>](ctx: &AudioContext) -> PureAudioWorkletNode {
+                    pure_audio_wasm::register_and_create_node(stringify!([<$name:lower>]), $process, ctx, true).await.unwrap_throw()
                 }
             }
         };
