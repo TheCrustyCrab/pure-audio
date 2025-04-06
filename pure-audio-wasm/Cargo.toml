@@ -26,6 +26,7 @@ web-sys = { version = "0.3.69", features = [
   "Event",
   "HtmlElement",
   "HtmlInputElement",
+  "MessagePort",
   "Node",
   'Request', 
   'RequestInit', 

@@ -1,6 +1,7 @@
 use proc_macro::TokenStream;
+use proc_macro2::Span;
 use quote::{format_ident, quote};
-use syn::{parse::Parse, parse_macro_input, spanned::Spanned, token::Comma, Expr, Fields, FieldsUnnamed, Ident, Item, ItemStruct, LitFloat, LitInt, LitStr, Token};
+use syn::{parse::Parse, parse_macro_input, spanned::Spanned, token::Comma, Expr, Fields, FieldsUnnamed, Ident, Item, ItemStruct, LitFloat, LitInt, LitStr, Token, Type, TypePath};
 
 struct ForParamsInput {
     macro_ident: Ident,
@@ -90,8 +91,8 @@ pub fn impl_processor(ts: TokenStream) -> TokenStream {
                     &'a mut self,
                     inputs: [[&'a [f32]; NUM_CHANNELS]; NUM_INPUTS],
                     outputs: [[&'a mut [f32]; NUM_CHANNELS]; NUM_OUTPUTS],
-                    parameter_single_values: &'a [f32; #num_params],
-                    parameter_per_sample_values: &'a [Option<&'a [f32]>; #num_params],
+                    parameter_single_values: &'a [u32; #num_params],
+                    parameter_per_sample_values: &'a [Option<&'a [u32]>; #num_params],
                     events: &'a [Event]
                 ) {
                     #(
@@ -138,6 +139,14 @@ pub fn impl_processor(ts: TokenStream) -> TokenStream {
                     ProcessorWrapper::new(self, sample_rate, S::default())
                 }
 
+                fn parameter_f64_to_value(index: usize, d: f64) -> u32 {
+                    ([#(#generic_idents::f64_to_value),*] as [fn(f64) -> u32; #num_params])[index](d)
+                }
+
+                fn parameter_value_to_f64(index: usize, value: u32) -> f64 {
+                    ([#(#generic_idents::value_to_f64),*] as [fn(u32) -> f64; #num_params])[index](value)
+                }
+
                 fn parameter_text_to_value(index: usize, text: &str) -> Option<f64> {
                     ([#(#generic_idents::text_to_value),*] as [fn(&str) -> Option<f64>; #num_params])[index](text)
                 }
@@ -151,16 +160,56 @@ pub fn impl_processor(ts: TokenStream) -> TokenStream {
     TokenStream::from(implementations)
 }
 
-enum ParameterAttr {
+enum NumericParameterAttr<const ONLY_INTEGERS: bool, const ONLY_UNSIGNED: bool> {
+    LitFloat(LitFloat),
+    LitInt(LitInt)
+}
+
+impl<const ONLY_INTEGERS: bool, const ONLY_UNSIGNED: bool> TryFrom<NumericParameterAttr<ONLY_INTEGERS, ONLY_UNSIGNED>> for f32 {
+    type Error = syn::Error;
+
+    fn try_from(value: NumericParameterAttr<ONLY_INTEGERS, ONLY_UNSIGNED>) -> Result<Self, Self::Error> {
+        let (value, span): (f32, Span) = match value {
+            NumericParameterAttr::LitFloat(lit_float) => (lit_float.base10_parse()?, lit_float.span()),
+            NumericParameterAttr::LitInt(lit_int) => (lit_int.base10_parse()?, lit_int.span()),
+        };
+        
+        if ONLY_INTEGERS && value.fract() != 0.0 {
+            return Err(syn::Error::new(span, "values with fractions are not supported for i32 and u32"));
+        }
+
+        if ONLY_UNSIGNED && value < 0.0 {
+            return Err(syn::Error::new(span, "negative values are not supported for u32"));
+        }
+
+        Ok(value)
+    }
+}
+
+impl<const ONLY_INTEGERS: bool, const ONLY_UNSIGNED: bool> Parse for NumericParameterAttr<ONLY_INTEGERS, ONLY_UNSIGNED> {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        if input.peek(LitFloat) {
+            return Ok(Self::LitFloat(input.parse::<LitFloat>().unwrap()));
+        }
+
+        if let Ok(x) = input.parse::<LitInt>() {
+            return Ok(Self::LitInt(x));
+        }
+
+        Err(syn::Error::new(input.span(), format!("expected a float or int literal")))
+    }
+}
+
+enum ParameterAttr<const ONLY_INTEGERS: bool, const ONLY_UNSIGNED: bool> {
     Name(LitStr),
-    DefaultValue(LitFloat),
-    MinValue(LitFloat),
-    MaxValue(LitFloat),
+    DefaultValue(NumericParameterAttr<ONLY_INTEGERS, ONLY_UNSIGNED>),
+    MinValue(NumericParameterAttr<ONLY_INTEGERS, ONLY_UNSIGNED>),
+    MaxValue(NumericParameterAttr<ONLY_INTEGERS, ONLY_UNSIGNED>),
     TextToValue(Expr),
     ValueToText(Expr)
 }
 
-impl Parse for ParameterAttr {
+impl<const ONLY_INTEGERS: bool, const ONLY_UNSIGNED: bool> Parse for ParameterAttr<ONLY_INTEGERS, ONLY_UNSIGNED> {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let key_token = input.parse::<Ident>()?;
         let key = key_token.to_string();
@@ -177,7 +226,7 @@ impl Parse for ParameterAttr {
     }
 }
 
-struct ParameterAttrs {
+struct ParameterAttrs<const ONLY_INTEGERS: bool, const ONLY_UNSIGNED: bool> {
     name: Option<String>,
     default_value: Option<f32>,
     min_value: Option<f32>,
@@ -186,9 +235,9 @@ struct ParameterAttrs {
     value_to_text: Option<Expr>
 }
 
-impl Parse for ParameterAttrs {
+impl<const ONLY_INTEGERS: bool, const ONLY_UNSIGNED: bool> Parse for ParameterAttrs<ONLY_INTEGERS, ONLY_UNSIGNED> {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let attrs = syn::punctuated::Punctuated::<ParameterAttr, Comma>::parse_terminated(input)?;
+        let attrs = syn::punctuated::Punctuated::<ParameterAttr<ONLY_INTEGERS, ONLY_UNSIGNED>, Comma>::parse_terminated(input)?;
         
         let mut name = None;
         let mut default_value = None;
@@ -200,9 +249,9 @@ impl Parse for ParameterAttrs {
         for attr in attrs {
             match attr {
                 ParameterAttr::Name(lit_str) => name = Some(lit_str.value()),
-                ParameterAttr::DefaultValue(lit_float) => default_value = Some(lit_float.base10_parse()?),
-                ParameterAttr::MinValue(lit_float) => min_value = Some(lit_float.base10_parse()?),
-                ParameterAttr::MaxValue(lit_float) => max_value = Some(lit_float.base10_parse()?),
+                ParameterAttr::DefaultValue(numeric) => default_value = Some(numeric.try_into()?),
+                ParameterAttr::MinValue(numeric) => min_value = Some(numeric.try_into()?),
+                ParameterAttr::MaxValue(numeric) => max_value = Some(numeric.try_into()?),
                 ParameterAttr::TextToValue(expr) => text_to_value = Some(expr),
                 ParameterAttr::ValueToText(expr) => value_to_text = Some(expr)
             }
@@ -219,83 +268,299 @@ impl Parse for ParameterAttrs {
     }
 }
 
+enum BoolEnumParameterAttr {
+    Name(LitStr),
+    TextToValue(Expr),
+    ValueToText(Expr)
+}
+
+impl Parse for BoolEnumParameterAttr {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let key_token = input.parse::<Ident>()?;
+        let key = key_token.to_string();
+        input.parse::<Token![=]>()?;
+        match key.as_ref() {
+            "name" => Ok(BoolEnumParameterAttr::Name(input.parse()?)),
+            "text_to_value" => Ok(BoolEnumParameterAttr::TextToValue(input.parse()?)),
+            "value_to_text" => Ok(BoolEnumParameterAttr::ValueToText(input.parse()?)),
+            _ => Err(syn::Error::new(key_token.span(), format!("attribute '{key}' is not supported for bool and enum types")))
+        }
+    }
+}
+
+struct BoolEnumParameterAttrs{
+    name: Option<String>,
+    text_to_value: Option<Expr>,
+    value_to_text: Option<Expr>
+}
+
+impl Parse for BoolEnumParameterAttrs {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let attrs = syn::punctuated::Punctuated::<BoolEnumParameterAttr, Comma>::parse_terminated(input)?;
+        
+        let mut name = None;
+        let mut text_to_value = None;
+        let mut value_to_text = None;
+
+        for attr in attrs {
+            match attr {
+                BoolEnumParameterAttr::Name(lit_str) => name = Some(lit_str.value()),
+                BoolEnumParameterAttr::TextToValue(expr) => text_to_value = Some(expr),
+                BoolEnumParameterAttr::ValueToText(expr) => value_to_text = Some(expr)
+            }
+        }
+
+        Ok(Self {
+            name,
+            text_to_value,
+            value_to_text
+        })
+    }
+}
+
+enum SupportedNewType {
+    Bool,
+    F32,
+    I32,
+    U32
+}
+
 /// Implements the [`Parameter`] trait for a parameter type.
-/// The type must be a tuple struct with a single float field.
+/// The type must be an enum or a tuple struct with a single bool, f32, i32 or u32 field.
 /// The following optional attributes can be provided:
 /// - name: string literal (default: name of the type)
-/// - default: float literal (default: 1.0)
-/// - min: float literal (default: 0.0)
-/// - max: float literal (default: 1.0)
-/// - text_to_value: expression refering to a fn(&str) -> Option<f64> (default: built-in float parsing)
-/// - value_to_text: expression refering to a fn(f64, &mut std::fmt::Write) -> bool (default: built-in float formatting)
+/// - default: float literal (default: 1.0, not for bools and enums)
+/// - min: float literal (default: 0.0, not for bools and enums)
+/// - max: float literal (default: 1.0, not for bools and enums)
+/// - text_to_value: expression refering to a [`fn(&str) -> Option<f64>`] (default: built-in float parsing)
+/// - value_to_text: expression refering to a [`fn(f64, &mut std::fmt::Write) -> bool`] (default: built-in float formatting)
 #[proc_macro_attribute]
 pub fn parameter(attr: TokenStream, input: TokenStream) -> TokenStream {
     match syn::parse::<syn::Item>(input) {
         Ok(item) => {
-            if let Item::Struct(ref s) = item {
-                let ItemStruct { ident, fields: Fields::Unnamed(FieldsUnnamed { unnamed, .. }), .. } = s else {
-                    return TokenStream::from(syn::Error::new(item.span(), "type must be a tuple struct with a single field").into_compile_error());
-                };
-
-                if unnamed.len() != 1 {
-                    return TokenStream::from(syn::Error::new(item.span(), "type must be a tuple struct with a single field").into_compile_error());
-                }
-                // todo: validate that the single unnamed field is f32/f64
-                let struct_name = &ident;
-                let ParameterAttrs { name, default_value, min_value, max_value, text_to_value, value_to_text }  = parse_macro_input!(attr as ParameterAttrs);
-
-                let name = name.unwrap_or(struct_name.to_string());
-                let default_value = default_value.unwrap_or(1.0);
-                let min_value = min_value.unwrap_or(0.0);
-                let max_value = max_value.unwrap_or(1.0);
-                let text_to_value = if let Some(expr) = text_to_value {
-                    quote! {
-                        #[inline]
-                        fn text_to_value(text: &str) -> Option<f64> {
-                            #expr(text) 
+            match item {
+                Item::Struct(ref s) => {
+                    let ItemStruct { ident, fields: Fields::Unnamed(FieldsUnnamed { unnamed, .. }), .. } = s else {
+                        return TokenStream::from(syn::Error::new(item.span(), "type must be a tuple struct with a single bool, f32, i32 or u32 field").into_compile_error());
+                    };
+    
+                    if unnamed.len() != 1 {
+                        return TokenStream::from(syn::Error::new(item.span(), "type must be a tuple struct with a single bool, f32, i32 or u32 field").into_compile_error());
+                    }
+    
+                    let new_type = if let Type::Path(TypePath { path, .. }) = &unnamed[0].ty {
+                        let ident = path.get_ident().map(|ident| ident.to_string());
+                        match ident.as_ref().map(String::as_str) {
+                            Some("bool") => Some(SupportedNewType::Bool),
+                            Some("f32") => Some(SupportedNewType::F32),
+                            Some("i32") => Some(SupportedNewType::I32),
+                            Some("u32") => Some(SupportedNewType::U32),
+                            _ => None
                         }
-                    }
-                } else {
-                    quote! { }
-                };
-                let value_to_text = if let Some(expr) = value_to_text {
-                    quote! { 
-                        #[inline]
-                        fn value_to_text(value: f64, writer: &mut impl std::fmt::Write) -> bool {
-                            #expr(value, writer)
-                        } 
-                    }
-                } else {
-                    quote! { }
-                };
-        
-                let implementation = quote! {
-                    #[derive(Copy, Clone)] 
-                    #[pure_audio::pure_audio_proc_macro::parameter_arithmetic]
-                    #s
-        
-                    impl pure_audio::Parameter for #struct_name {
-                        const DESCRIPTOR: pure_audio::ParameterDescriptor = pure_audio::ParameterDescriptor {
-                            name: #name,
-                            default_value: #default_value,
-                            min_value: #min_value,
-                            max_value: #max_value
-                        };
-                        
-                        #[inline]
-                        fn from_parameter(value: f32) -> Self {
-                            Self(value)
+                    } else {
+                        None
+                    };
+    
+                    let Some(new_type) = new_type else {                    
+                        return TokenStream::from(syn::Error::new(item.span(), "type must be a tuple struct with a single bool, f32, i32 or u32 field").into_compile_error());
+                    };
+    
+                    let struct_name = &ident;
+                    let (name, default_value, min_value, max_value, text_to_value, value_to_text) = {
+                        match new_type {
+                            SupportedNewType::Bool => {
+                                let BoolEnumParameterAttrs { name, text_to_value, value_to_text, .. }  = parse_macro_input!(attr as BoolEnumParameterAttrs);
+                                (name, Some(0.0), Some(0.0), Some(1.0), text_to_value, value_to_text)
+                            },
+                            SupportedNewType::F32 => {
+                                let ParameterAttrs { name, default_value, min_value, max_value, text_to_value, value_to_text }  = parse_macro_input!(attr as ParameterAttrs<false, false>);
+                                (name, default_value, min_value, max_value, text_to_value, value_to_text)
+                            },
+                            SupportedNewType::I32 => {
+                                let ParameterAttrs { name, default_value, min_value, max_value, text_to_value, value_to_text }  = parse_macro_input!(attr as ParameterAttrs<true, false>);
+                                (name, default_value, min_value, max_value, text_to_value, value_to_text)
+                            },
+                            SupportedNewType::U32 => {                            
+                                let ParameterAttrs { name, default_value, min_value, max_value, text_to_value, value_to_text }  = parse_macro_input!(attr as ParameterAttrs<true, true>);
+                                (name, default_value, min_value, max_value, text_to_value, value_to_text)
+                            }
                         }
-                        
-                        #text_to_value
-
-                        #value_to_text
+                    };
+    
+                    let name = name.unwrap_or(struct_name.to_string());
+                    let default_value = default_value.unwrap_or(1.0);
+                    let min_value = min_value.unwrap_or(0.0);
+                    let max_value = max_value.unwrap_or(1.0);
+    
+                    let text_to_value = if let Some(expr) = text_to_value {
+                        quote! {
+                            #[inline]
+                            fn text_to_value(text: &str) -> Option<f64> {
+                                #expr(text) 
+                            }
+                        }
+                    } else {
+                        quote! { }
+                    };
+                    let value_to_text = if let Some(expr) = value_to_text {
+                        quote! { 
+                            #[inline]
+                            fn value_to_text(value: f64, writer: &mut impl std::fmt::Write) -> bool {
+                                #expr(value, writer)
+                            } 
+                        }
+                    } else {
+                        quote! { }
+                    };
+    
+                    let is_stepped = match new_type {
+                        SupportedNewType::Bool | SupportedNewType::I32 | SupportedNewType::U32 => true,
+                        SupportedNewType::F32 => false
+                    };
+    
+                    let from_parameter = match new_type {
+                        SupportedNewType::Bool => quote! { Self(value == 1) },
+                        SupportedNewType::F32 => quote! { Self(f32::from_bits(value)) },
+                        SupportedNewType::I32 => quote! { unsafe { Self(std::mem::transmute(value)) } },
+                        SupportedNewType::U32 => quote! { Self(value) }
+                    };
+    
+                    let f64_to_value = match new_type {
+                        SupportedNewType::Bool => quote! { d as u32 },
+                        SupportedNewType::F32 => quote! { (d as f32).to_bits() },
+                        SupportedNewType::I32 => quote! { unsafe { std::mem::transmute(d as i32) } },
+                        SupportedNewType::U32 => quote! { d as u32 }
+                    };
+    
+                    let value_to_f64 = match new_type {
+                        SupportedNewType::Bool => quote! { value as f64 },
+                        SupportedNewType::F32 => quote! { f32::from_bits(value) as f64 },
+                        SupportedNewType::I32 => quote! { unsafe { std::mem::transmute::<u32, i32>(value) as f64 } },
+                        SupportedNewType::U32 => quote! { value as f64 },
+                    };
+    
+                    let parameter_arithmetic_macro = match new_type {
+                        SupportedNewType::Bool => quote! { },
+                        SupportedNewType::F32 | SupportedNewType::I32 | SupportedNewType::U32 => quote! { #[pure_audio::pure_audio_proc_macro::parameter_arithmetic] }
+                    };
+            
+                    let implementation = quote! {
+                        #[derive(Copy, Clone)] 
+                        #parameter_arithmetic_macro
+                        #s
+            
+                        impl pure_audio::Parameter for #struct_name {
+                            const DESCRIPTOR: pure_audio::ParameterDescriptor = pure_audio::ParameterDescriptor {
+                                name: #name,
+                                default_value: #default_value,
+                                min_value: #min_value,
+                                max_value: #max_value,
+                                is_stepped: #is_stepped
+                            };
+                            
+                            #[inline]
+                            fn from_parameter(value: u32) -> Self {
+                                #from_parameter
+                            }
+        
+                            #[inline]
+                            fn f64_to_value(d: f64) -> u32 {
+                                #f64_to_value
+                            }
+                            
+                            #[inline]
+                            fn value_to_f64(value: u32) -> f64 {
+                                #value_to_f64
+                            }
+                            
+                            #text_to_value
+    
+                            #value_to_text
+                        }
+                    };
+    
+                    TokenStream::from(implementation)
+                },
+                Item::Enum(ref e) => {
+                    let mut max_value = -1;
+                    for v in &e.variants {
+                        if !v.fields.is_empty() {
+                            return TokenStream::from(syn::Error::new(v.span(), "enum variants with fields are not supported").into_compile_error())
+                        }
+                        max_value += 1;
                     }
-                };
 
-                TokenStream::from(implementation)
-            } else {
-                TokenStream::from(syn::Error::new(item.span(), "type not supported").into_compile_error())
+                    if max_value == -1 {
+                        return TokenStream::from(syn::Error::new(e.span(), "enum must have at least one variant").into_compile_error())
+                    }
+                    
+                    let ParameterAttrs { name,  text_to_value, value_to_text, .. }  = parse_macro_input!(attr as ParameterAttrs<true, true>);
+    
+                    let enum_name = &e.ident;
+                    let name = name.unwrap_or(enum_name.to_string());
+                    let default_value = 0.0f32;
+                    let min_value = 0.0f32;
+                    let max_value = max_value as f32;                    
+    
+                    let text_to_value = if let Some(expr) = text_to_value {
+                        quote! {
+                            #[inline]
+                            fn text_to_value(text: &str) -> Option<f64> {
+                                #expr(text) 
+                            }
+                        }
+                    } else {
+                        quote! { }
+                    };
+                    let value_to_text = if let Some(expr) = value_to_text {
+                        quote! { 
+                            #[inline]
+                            fn value_to_text(value: f64, writer: &mut impl std::fmt::Write) -> bool {
+                                #expr(value, writer)
+                            } 
+                        }
+                    } else {
+                        quote! { }
+                    };    
+            
+                    let implementation = quote! {
+                        #[derive(Copy, Clone)]
+                        #[repr(u32)]
+                        #e
+            
+                        impl pure_audio::Parameter for #enum_name {
+                            const DESCRIPTOR: pure_audio::ParameterDescriptor = pure_audio::ParameterDescriptor {
+                                name: #name,
+                                default_value: #default_value,
+                                min_value: #min_value,
+                                max_value: #max_value,
+                                is_stepped: true
+                            };
+                            
+                            #[inline]
+                            fn from_parameter(value: u32) -> Self {
+                                unsafe { core::mem::transmute(value) }
+                            }
+        
+                            #[inline]
+                            fn f64_to_value(d: f64) -> u32 {
+                                d as u32
+                            }
+                            
+                            #[inline]
+                            fn value_to_f64(value: u32) -> f64 {
+                                value as f64
+                            }
+                            
+                            #text_to_value
+    
+                            #value_to_text
+                        }
+                    };
+    
+                    TokenStream::from(implementation)
+                },
+                _ => TokenStream::from(syn::Error::new(item.span(), "type not supported").into_compile_error())
             }
         },
         Err(err) => {
@@ -308,135 +573,273 @@ pub fn parameter(attr: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn parameter_arithmetic(_attr: TokenStream, input: TokenStream) -> TokenStream {
     let item = syn::parse::<syn::Item>(input).unwrap();
-    if let syn::Item::Struct(s) = item {
-        let name = &s.ident;
+    if let syn::Item::Struct(ref s) = item {
+        let ItemStruct { ident, fields: Fields::Unnamed(FieldsUnnamed { unnamed, .. }), .. } = s else {
+            return TokenStream::from(syn::Error::new(item.span(), "type must be a tuple struct with a single f32, i32 or u32 field").into_compile_error());
+        };
+
+        if unnamed.len() != 1 {
+            return TokenStream::from(syn::Error::new(item.span(), "type must be a tuple struct with a single f32, i32 or u32 field").into_compile_error());
+        }
+
+        let inner_type = &unnamed[0].ty;
+
+        let name = ident;
         let implementation = quote! {
             #s
 
-            impl std::ops::Add<f32> for #name {
-                type Output = f32;
+            impl std::ops::Add<#inner_type> for #name {
+                type Output = #inner_type;
             
-                fn add(self, rhs: f32) -> Self::Output {
+                fn add(self, rhs: #inner_type) -> Self::Output {
                     self.0 + rhs
                 }
             }
             
-            impl std::ops::Add<&f32> for #name {
-                type Output = f32;
+            impl std::ops::Add<&#inner_type> for #name {
+                type Output = #inner_type;
             
-                fn add(self, rhs: &f32) -> Self::Output {
+                fn add(self, rhs: &#inner_type) -> Self::Output {
                     self.0 + rhs
                 }
             }
             
-            impl std::ops::Add<#name> for f32 {
-                type Output = f32;
+            impl std::ops::Add<#name> for #inner_type {
+                type Output = #inner_type;
             
                 fn add(self, rhs: #name) -> Self::Output {
                     self + rhs.0
                 }
             }
             
-            impl std::ops::Add<#name> for &f32 {
-                type Output = f32;
+            impl std::ops::Add<#name> for &#inner_type {
+                type Output = #inner_type;
             
                 fn add(self, rhs: #name) -> Self::Output {
                     self + rhs.0
                 }
             }
+
+            impl std::ops::Add<#inner_type> for &#name {
+                type Output = #inner_type;
+            
+                fn add(self, rhs: #inner_type) -> Self::Output {
+                    self.0 + rhs
+                }
+            }
+            
+            impl std::ops::Add<&#inner_type> for &#name {
+                type Output = #inner_type;
+            
+                fn add(self, rhs: &#inner_type) -> Self::Output {
+                    self.0 + rhs
+                }
+            }
+            
+            impl std::ops::Add<&#name> for #inner_type {
+                type Output = #inner_type;
+            
+                fn add(self, rhs: &#name) -> Self::Output {
+                    self + rhs.0
+                }
+            }
+            
+            impl std::ops::Add<&#name> for &#inner_type {
+                type Output = #inner_type;
+            
+                fn add(self, rhs: &#name) -> Self::Output {
+                    self + rhs.0
+                }
+            }
     
-            impl std::ops::Div<f32> for #name {
-                type Output = f32;
+            impl std::ops::Div<#inner_type> for #name {
+                type Output = #inner_type;
             
-                fn div(self, rhs: f32) -> Self::Output {
+                fn div(self, rhs: #inner_type) -> Self::Output {
                     self.0 / rhs
                 }
             }
             
-            impl std::ops::Div<&f32> for #name {
-                type Output = f32;
+            impl std::ops::Div<&#inner_type> for #name {
+                type Output = #inner_type;
             
-                fn div(self, rhs: &f32) -> Self::Output {
+                fn div(self, rhs: &#inner_type) -> Self::Output {
                     self.0 / rhs
                 }
             }
             
-            impl std::ops::Div<#name> for f32 {
-                type Output = f32;
+            impl std::ops::Div<#name> for #inner_type {
+                type Output = #inner_type;
             
                 fn div(self, rhs: #name) -> Self::Output {
                     self / rhs.0
                 }
             }
             
-            impl std::ops::Div<#name> for &f32 {
-                type Output = f32;
+            impl std::ops::Div<#name> for &#inner_type {
+                type Output = #inner_type;
             
                 fn div(self, rhs: #name) -> Self::Output {
                     self / rhs.0
                 }
             }
     
-            impl std::ops::Mul<f32> for #name {
-                type Output = f32;
+            impl std::ops::Div<#inner_type> for &#name {
+                type Output = #inner_type;
             
-                fn mul(self, rhs: f32) -> Self::Output {
+                fn div(self, rhs: #inner_type) -> Self::Output {
+                    self.0 / rhs
+                }
+            }
+            
+            impl std::ops::Div<&#inner_type> for &#name {
+                type Output = #inner_type;
+            
+                fn div(self, rhs: &#inner_type) -> Self::Output {
+                    self.0 / rhs
+                }
+            }
+            
+            impl std::ops::Div<&#name> for #inner_type {
+                type Output = #inner_type;
+            
+                fn div(self, rhs: &#name) -> Self::Output {
+                    self / rhs.0
+                }
+            }
+            
+            impl std::ops::Div<&#name> for &#inner_type {
+                type Output = #inner_type;
+            
+                fn div(self, rhs: &#name) -> Self::Output {
+                    self / rhs.0
+                }
+            }
+    
+            impl std::ops::Mul<#inner_type> for #name {
+                type Output = #inner_type;
+            
+                fn mul(self, rhs: #inner_type) -> Self::Output {
                     self.0 * rhs
                 }
             }
             
-            impl std::ops::Mul<&f32> for #name {
-                type Output = f32;
+            impl std::ops::Mul<&#inner_type> for #name {
+                type Output = #inner_type;
             
-                fn mul(self, rhs: &f32) -> Self::Output {
+                fn mul(self, rhs: &#inner_type) -> Self::Output {
                     self.0 * rhs
                 }
             }
             
-            impl std::ops::Mul<#name> for f32 {
-                type Output = f32;
+            impl std::ops::Mul<#name> for #inner_type {
+                type Output = #inner_type;
             
                 fn mul(self, rhs: #name) -> Self::Output {
                     self * rhs.0
                 }
             }
             
-            impl std::ops::Mul<#name> for &f32 {
-                type Output = f32;
+            impl std::ops::Mul<#name> for &#inner_type {
+                type Output = #inner_type;
             
                 fn mul(self, rhs: #name) -> Self::Output {
                     self * rhs.0
                 }
             }
     
-            impl std::ops::Sub<f32> for #name {
-                type Output = f32;
+            impl std::ops::Mul<#inner_type> for &#name {
+                type Output = #inner_type;
             
-                fn sub(self, rhs: f32) -> Self::Output {
+                fn mul(self, rhs: #inner_type) -> Self::Output {
+                    self.0 * rhs
+                }
+            }
+            
+            impl std::ops::Mul<&#inner_type> for &#name {
+                type Output = #inner_type;
+            
+                fn mul(self, rhs: &#inner_type) -> Self::Output {
+                    self.0 * rhs
+                }
+            }
+            
+            impl std::ops::Mul<&#name> for #inner_type {
+                type Output = #inner_type;
+            
+                fn mul(self, rhs: &#name) -> Self::Output {
+                    self * rhs.0
+                }
+            }
+            
+            impl std::ops::Mul<&#name> for &#inner_type {
+                type Output = #inner_type;
+            
+                fn mul(self, rhs: &#name) -> Self::Output {
+                    self * rhs.0
+                }
+            }
+    
+            impl std::ops::Sub<#inner_type> for #name {
+                type Output = #inner_type;
+            
+                fn sub(self, rhs: #inner_type) -> Self::Output {
                     self.0 - rhs
                 }
             }
             
-            impl std::ops::Sub<&f32> for #name {
-                type Output = f32;
+            impl std::ops::Sub<&#inner_type> for #name {
+                type Output = #inner_type;
             
-                fn sub(self, rhs: &f32) -> Self::Output {
+                fn sub(self, rhs: &#inner_type) -> Self::Output {
                     self.0 - rhs
                 }
             }
             
-            impl std::ops::Sub<#name> for f32 {
-                type Output = f32;
+            impl std::ops::Sub<#name> for #inner_type {
+                type Output = #inner_type;
             
                 fn sub(self, rhs: #name) -> Self::Output {
                     self - rhs.0
                 }
             }
             
-            impl std::ops::Sub<#name> for &f32 {
-                type Output = f32;
+            impl std::ops::Sub<#name> for &#inner_type {
+                type Output = #inner_type;
             
                 fn sub(self, rhs: #name) -> Self::Output {
+                    self - rhs.0
+                }
+            }
+    
+            impl std::ops::Sub<#inner_type> for &#name {
+                type Output = #inner_type;
+            
+                fn sub(self, rhs: #inner_type) -> Self::Output {
+                    self.0 - rhs
+                }
+            }
+            
+            impl std::ops::Sub<&#inner_type> for &#name {
+                type Output = #inner_type;
+            
+                fn sub(self, rhs: &#inner_type) -> Self::Output {
+                    self.0 - rhs
+                }
+            }
+            
+            impl std::ops::Sub<&#name> for #inner_type {
+                type Output = #inner_type;
+            
+                fn sub(self, rhs: &#name) -> Self::Output {
+                    self - rhs.0
+                }
+            }
+            
+            impl std::ops::Sub<&#name> for &#inner_type {
+                type Output = #inner_type;
+            
+                fn sub(self, rhs: &#name) -> Self::Output {
                     self - rhs.0
                 }
             }

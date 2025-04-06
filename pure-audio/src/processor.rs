@@ -16,8 +16,8 @@ pub trait Processor<
         &'a mut self,
         inputs: [[&'a [f32]; NUM_CHANNELS]; NUM_INPUTS],
         outputs: [[&'a mut [f32]; NUM_CHANNELS]; NUM_OUTPUTS],
-        parameter_single_values: &'a [f32; NUM_PARAMS],
-        parameter_per_sample_values: &'a [Option<&'a [f32]>; NUM_PARAMS],
+        parameter_single_values: &'a [u32; NUM_PARAMS],
+        parameter_per_sample_values: &'a [Option<&'a [u32]>; NUM_PARAMS],
         events: &'a [Event]
     ) {
     }
@@ -88,6 +88,8 @@ pub trait IntoProcessor<
         self,
         sample_rate: f32,
     ) -> Self::Out;
+    fn parameter_f64_to_value(index: usize, d: f64) -> u32;
+    fn parameter_value_to_f64(index: usize, value: u32) -> f64;
     fn parameter_text_to_value(index: usize, text: &str) -> Option<f64>;
     fn parameter_value_to_text<W: Write>(index: usize, value: f64, writer: &mut W) -> bool;
 }

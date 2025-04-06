@@ -53,6 +53,7 @@ pub fn process(
             pure_audio::Event::NoteOff { key, .. } => {
                 voices.remove(key);
             },
+            _ => {}
         }
     }
 

@@ -75,7 +75,7 @@ where
     let frames_count = process.frames_count as usize;
 
     // todo: to avoid conversions, is it better to use f64 for parameters everywhere, including wasm?
-    let parameters = this.parameters.each_ref().map(|p| p.load(Ordering::Relaxed) as f32);
+    let parameters = this.parameters.each_ref().map(|p| p.load(Ordering::Relaxed));
     
     let inputs = array::from_fn(|input_index|{
         let input_ptr = process.audio_inputs.add(input_index);

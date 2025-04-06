@@ -1,7 +1,7 @@
 use std::ffi::CStr;
 use std::{ffi::c_char, sync::atomic::Ordering};
 use std::fmt::Write;
-use clap_sys::{events::{clap_input_events, clap_output_events}, ext::params::{clap_param_info, clap_plugin_params, CLAP_PARAM_IS_AUTOMATABLE, CLAP_PARAM_IS_MODULATABLE}, plugin::clap_plugin};
+use clap_sys::{events::{clap_input_events, clap_output_events}, ext::params::{clap_param_info, clap_plugin_params, CLAP_PARAM_IS_AUTOMATABLE, CLAP_PARAM_IS_MODULATABLE, CLAP_PARAM_IS_STEPPED}, plugin::clap_plugin};
 use pure_audio::IntoProcessor;
 use crate::plugin::get_plugin_data;
 use crate::util::Writable;
@@ -53,6 +53,14 @@ where
             info.id = index;
             // todo: add to ParameterDescriptor if needed (specific to CLAP)
             info.flags = CLAP_PARAM_IS_AUTOMATABLE | CLAP_PARAM_IS_MODULATABLE;
+            if desc.is_stepped { // enums and integers
+                // CLAP_PARAM_IS_ENUM does also exist:
+                // This parameter represents an enumerated value.
+                // If you set this flag, then you must set CLAP_PARAM_IS_STEPPED too.
+                // All values from min to max must not have a blank value_to_text().
+                // CLAP_PARAM_IS_ENUM = 1 << 16,
+                info.flags |= CLAP_PARAM_IS_STEPPED; 
+            }
             info.default_value = desc.default_value as f64;
             info.max_value = desc.max_value as f64;
             info.min_value = desc.min_value as f64;
@@ -67,7 +75,8 @@ where
     // [main-thread]
     unsafe extern "C" fn params_get_value(clap_plugin: *const clap_plugin, id: u32, value: *mut f64) -> bool {
         let plugin = get_plugin_data::<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>(clap_plugin);
-        *value = plugin.parameters[id as usize].load(Ordering::Relaxed);
+        let index = id as usize;
+        *value = P::parameter_value_to_f64(index, plugin.parameters[index].load(Ordering::Relaxed));
         
         true
     }

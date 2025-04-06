@@ -45,6 +45,10 @@ impl WasmProcessor {
     pub fn note_off(&mut self, key: u8, velocity: u8) {
         self.implementation.note_off(key, velocity);
     }
+
+    pub fn indicate_params_changed(&mut self) {
+        self.implementation.indicate_params_changed();
+    }
 }
 
 pub trait WasmProcessorImplementation: 'static {
@@ -55,6 +59,7 @@ pub trait WasmProcessorImplementation: 'static {
     fn process(&mut self);
     fn note_on(&mut self, key: u8, velocity: u8);
     fn note_off(&mut self, key: u8, velocity: u8);
+    fn indicate_params_changed(&mut self);
 }
 
 struct WasmProcessorWrapper<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params> {
@@ -62,8 +67,8 @@ struct WasmProcessorWrapper<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize
     events: Vec<Event>,
     inputs: [[[f32; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_INPUTS],
     outputs: [[[f32; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_OUTPUTS],
-    parameters: [f32; NUM_PARAMS],
-    parameters_per_sample: [Option<[f32; PROCESSOR_BLOCK_LENGTH]>; NUM_PARAMS],
+    parameters: [u32; NUM_PARAMS],
+    parameters_per_sample: [Option<[u32; PROCESSOR_BLOCK_LENGTH]>; NUM_PARAMS],
     marker: PhantomData<Params>
 }
 
@@ -75,10 +80,10 @@ impl<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: u
             events: vec![],
             inputs: [[[0.0; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_INPUTS],
             outputs: [[[0.0; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_OUTPUTS],
-            parameters: [0.0; NUM_PARAMS],
-            parameters_per_sample: param_descriptors.map(|(desc, automation_rate)| {
+            parameters: [0; NUM_PARAMS],
+            parameters_per_sample: param_descriptors.map(|(.., automation_rate)| {
                 match automation_rate {
-                    AutomationRate::A => Some([desc.default_value; PROCESSOR_BLOCK_LENGTH]),
+                    AutomationRate::A => Some([0; PROCESSOR_BLOCK_LENGTH]),
                     AutomationRate::K => None
                 }
             }),
@@ -166,6 +171,10 @@ where
 
     fn note_off(&mut self, key: u8, velocity: u8) {
         self.events.push(Event::NoteOff { key, velocity });
+    }
+
+    fn indicate_params_changed(&mut self) {
+        self.events.push(Event::ParamsChanged);
     }
 }
 
