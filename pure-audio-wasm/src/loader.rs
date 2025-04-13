@@ -3,7 +3,7 @@ use js_sys::{Array, Object, Reflect};
 use pure_audio::{AutomationRate, IntoProcessor, ParameterDescriptor, ParameterKind};
 use wasm_bindgen::{prelude::Closure, JsCast, JsValue, UnwrapThrowExt};
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{console::log_1, window, AudioContext, AudioWorkletNodeOptions, Blob, BlobPropertyBag, ChannelCountMode, HtmlInputElement, Url};
+use web_sys::{console::log_1, window, AudioContext, AudioParamMap, AudioWorkletNodeOptions, Blob, BlobPropertyBag, ChannelCountMode, Document, Element, HtmlInputElement, HtmlLabelElement, MessagePort, Url};
 
 const AUDIO_CONTEXT_REGISTERED_MODULES_FIELD_NAME: &'static str = "registeredModules";
 
@@ -41,30 +41,73 @@ where
         for (ParameterDescriptor { name, default_value, min_value, max_value, kind }, ..) in P::PARAM_DESCRIPTORS {
             let paragraph = document.create_element("p")?;
             paragraph.set_text_content(Some(&format!("{name}:")));
-            let slider = document.create_element("input")?.dyn_into::<HtmlInputElement>()?;
-            slider.set_type("range");
-            slider.set_min(&min_value.to_string());
-            slider.set_max(&max_value.to_string());
-            slider.set_value(&default_value.to_string());
-            let step = match kind {
-                ParameterKind::Bool | ParameterKind::Enum | ParameterKind::I32 | ParameterKind::U32 => "1",
-                ParameterKind::F32 => "0.01"
-            };
-            slider.set_step(step);
-            let parameter = param_map.get(name).unwrap();
-            let port = port.clone();
-            let closure = Closure::<dyn Fn(_)>::new(move |event: web_sys::Event| {
-                let value = event.target().unwrap().dyn_into::<HtmlInputElement>().unwrap().value_as_number();
-                parameter.set_value(value as f32);
-                let msg = Object::new();
-                let _ = Reflect::set(&msg, &"type".into(), &"indicateParamsChanged".into());
-                let _ = port.post_message(&msg);
-            });
-            slider.add_event_listener_with_callback("change", closure.as_ref().unchecked_ref())?;
-            paragraph.append_child(&slider)?;
+
+            fn create_radio_buttons(document: &Document, paragraph: &Element, param_name: &str, param_map: &AudioParamMap, port: &MessagePort, options: &[&str]) -> Result<(), JsValue> {
+                for (value, option) in options.iter().enumerate() {
+                    let radio = document.create_element("input")?.dyn_into::<HtmlInputElement>()?;
+                    radio.set_type("radio");
+                    radio.set_name(param_name);
+                    radio.set_id(option);
+                    radio.set_value(&format!("{value}"));
+                    radio.set_checked(value == 0);
+                    let label = document.create_element("label")?.dyn_into::<HtmlLabelElement>()?;
+                    label.set_html_for(option);
+                    label.set_inner_html(option);
+                    let parameter = param_map.get(param_name).unwrap();
+                    let port = port.clone();
+                    let closure = Closure::<dyn Fn(_)>::new(move |event: web_sys::Event| {
+                        let value: f32 = event.target().unwrap().dyn_into::<HtmlInputElement>().unwrap().value().parse().unwrap();
+                        parameter.set_value(value as f32);
+                        let msg = Object::new();
+                        let _ = Reflect::set(&msg, &"type".into(), &"indicateParamsChanged".into());
+                        let _ = port.post_message(&msg);
+                    });
+
+                    radio.add_event_listener_with_callback("change", closure.as_ref().unchecked_ref())?;
+                    paragraph.append_child(&radio)?;
+                    paragraph.append_child(&label)?;
+
+                    // rely on weak references and the JS GC to drop the closure
+                   closure.forget();
+                }
+
+                Ok(())
+            }
+            match kind {
+                ParameterKind::Bool => {
+                    create_radio_buttons(&document, &paragraph, name, &param_map, &port, &["False", "True"])?;
+                },
+                ParameterKind::Enum(variants) => {
+                    create_radio_buttons(&document, &paragraph, name, &param_map, &port, &variants)?;
+                },
+                ParameterKind::F32 | ParameterKind::I32 | ParameterKind::U32 => {
+                    // slider
+                    let slider = document.create_element("input")?.dyn_into::<HtmlInputElement>()?;
+                    slider.set_type("range");
+                    slider.set_min(&min_value.to_string());
+                    slider.set_max(&max_value.to_string());
+                    slider.set_value(&default_value.to_string());
+                    let step = match kind {
+                        ParameterKind::Bool | ParameterKind::Enum(_) | ParameterKind::I32 | ParameterKind::U32 => "1",
+                        ParameterKind::F32 => "0.01"
+                    };
+                    slider.set_step(step);
+                    let parameter = param_map.get(name).unwrap();
+                    let port = port.clone();
+                    let closure = Closure::<dyn Fn(_)>::new(move |event: web_sys::Event| {
+                        let value = event.target().unwrap().dyn_into::<HtmlInputElement>().unwrap().value_as_number();
+                        parameter.set_value(value as f32);
+                        let msg = Object::new();
+                        let _ = Reflect::set(&msg, &"type".into(), &"indicateParamsChanged".into());
+                        let _ = port.post_message(&msg);
+                    });
+                    slider.add_event_listener_with_callback("change", closure.as_ref().unchecked_ref())?;
+                    paragraph.append_child(&slider)?;
+                    // rely on weak references and the JS GC to drop the closure
+                   closure.forget();
+                }
+            }
             control.append_child(&paragraph)?;
-             // rely on weak references and the JS GC to drop the closure
-            closure.forget();
         }
         body.append_child(&control)?;
     }
@@ -127,7 +170,7 @@ where
                 let offset = data_offset + i * (PROCESSOR_BLOCK_LENGTH + data_offset);
                 // for a-rate parameters, the array will only contain multiple (128) values when necessary (e.g. during a linear ramp)
                 let memory = match desc.kind {
-                    ParameterKind::Bool | ParameterKind::Enum | ParameterKind::U32 => "uint32Memory",
+                    ParameterKind::Bool | ParameterKind::Enum(_) | ParameterKind::U32 => "uint32Memory",
                     ParameterKind::F32 => "float32Memory",
                     ParameterKind::I32 => "int32Memory"                     
                 };
@@ -160,7 +203,7 @@ where
                     "#
                 ), {
                         let memory = match kind {
-                            ParameterKind::Bool | ParameterKind::Enum | ParameterKind::U32 => "uint32Memory",
+                            ParameterKind::Bool | ParameterKind::Enum(_) | ParameterKind::U32 => "uint32Memory",
                             ParameterKind::F32 => "float32Memory",
                             ParameterKind::I32 => "int32Memory"                     
                         };

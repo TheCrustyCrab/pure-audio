@@ -18,7 +18,7 @@ impl Display for AutomationRate {
 #[derive(Copy, Clone)]
 pub enum ParameterKind {
     Bool,
-    Enum,
+    Enum(&'static [&'static str]),
     F32,
     I32,
     U32

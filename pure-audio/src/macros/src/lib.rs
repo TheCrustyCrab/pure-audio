@@ -336,281 +336,277 @@ enum SupportedNewType {
 /// - value_to_text: expression refering to a [`fn(f64, &mut std::fmt::Write) -> bool`] (default: built-in float formatting)
 #[proc_macro_attribute]
 pub fn parameter(attr: TokenStream, input: TokenStream) -> TokenStream {
-    match syn::parse::<syn::Item>(input) {
-        Ok(item) => {
-            match item {
-                Item::Struct(ref s) => {
-                    let ItemStruct { ident, fields: Fields::Unnamed(FieldsUnnamed { unnamed, .. }), .. } = s else {
-                        return TokenStream::from(syn::Error::new(item.span(), "type must be a tuple struct with a single bool, f32, i32 or u32 field").into_compile_error());
-                    };
-    
-                    if unnamed.len() != 1 {
-                        return TokenStream::from(syn::Error::new(item.span(), "type must be a tuple struct with a single bool, f32, i32 or u32 field").into_compile_error());
+    parameter_impl(attr, input).unwrap_or_else(|e| TokenStream::from(e.into_compile_error()))
+}
+
+// a separate function with error propagation
+fn parameter_impl(attr: TokenStream, input: TokenStream) -> Result<TokenStream, syn::Error> {
+    const PARAMETER_TYPE_VALIDATION_MESSAGE: &'static str = "type must be a tuple struct with a single bool, f32, i32 or u32 field";
+    let item = syn::parse::<syn::Item>(input)?;    
+    match item {
+        Item::Struct(ref s) => {
+            let ItemStruct { ident, fields: Fields::Unnamed(FieldsUnnamed { unnamed, .. }), .. } = s else {
+                return Err(syn::Error::new(item.span(), PARAMETER_TYPE_VALIDATION_MESSAGE));
+            };
+
+            if unnamed.len() != 1 {
+                return Err(syn::Error::new(item.span(), PARAMETER_TYPE_VALIDATION_MESSAGE));
+            }
+
+            let new_type = if let Type::Path(TypePath { path, .. }) = &unnamed[0].ty {
+                let ident = path.get_ident().map(|ident| ident.to_string());
+                match ident.as_ref().map(String::as_str) {
+                    Some("bool") => Some(SupportedNewType::Bool),
+                    Some("f32") => Some(SupportedNewType::F32),
+                    Some("i32") => Some(SupportedNewType::I32),
+                    Some("u32") => Some(SupportedNewType::U32),
+                    _ => None
+                }
+            } else {
+                None
+            };
+
+            let Some(new_type) = new_type else {                    
+                return Err(syn::Error::new(item.span(), PARAMETER_TYPE_VALIDATION_MESSAGE));
+            };
+
+            let struct_name = &ident;
+            let (name, default_value, min_value, max_value, text_to_value, value_to_text) = {
+                match new_type {
+                    SupportedNewType::Bool => {
+                        let BoolEnumParameterAttrs { name, text_to_value, value_to_text, .. }  = syn::parse(attr)?;
+                        (name, Some(0.0), Some(0.0), Some(1.0), text_to_value, value_to_text)
+                    },
+                    SupportedNewType::F32 => {
+                        let ParameterAttrs { name, default_value, min_value, max_value, text_to_value, value_to_text }  = syn::parse::<ParameterAttrs<false, false>>(attr)?;
+                        (name, default_value, min_value, max_value, text_to_value, value_to_text)
+                    },
+                    SupportedNewType::I32 => {
+                        let ParameterAttrs { name, default_value, min_value, max_value, text_to_value, value_to_text }  = syn::parse::<ParameterAttrs<true, false>>(attr)?;
+                        (name, default_value, min_value, max_value, text_to_value, value_to_text)
+                    },
+                    SupportedNewType::U32 => {                            
+                        let ParameterAttrs { name, default_value, min_value, max_value, text_to_value, value_to_text }  = syn::parse::<ParameterAttrs<true, true>>(attr)?;
+                        (name, default_value, min_value, max_value, text_to_value, value_to_text)
                     }
+                }
+            };
+
+            let name = name.unwrap_or(struct_name.to_string());
+            let default_value = default_value.unwrap_or(1.0);
+            let min_value = min_value.unwrap_or(0.0);
+            let max_value = max_value.unwrap_or(1.0);
+
+            let text_to_value = if let Some(expr) = text_to_value {
+                quote! {
+                    #[inline]
+                    fn text_to_value(text: &str) -> Option<f64> {
+                        #expr(text) 
+                    }
+                }
+            } else {
+                quote! { }
+            };
+            let value_to_text = if let Some(expr) = value_to_text {
+                quote! { 
+                    #[inline]
+                    fn value_to_text(value: f64, writer: &mut impl std::fmt::Write) -> bool {
+                        #expr(value, writer)
+                    } 
+                }
+            } else {
+                quote! { }
+            };
+
+            let kind = match new_type {
+                SupportedNewType::Bool => quote! { pure_audio::ParameterKind::Bool },
+                SupportedNewType::F32 => quote! { pure_audio::ParameterKind::F32 },
+                SupportedNewType::I32 => quote! { pure_audio::ParameterKind::I32 },
+                SupportedNewType::U32 => quote! { pure_audio::ParameterKind::U32 }
+            };
+
+            let from_parameter = match new_type {
+                SupportedNewType::Bool => quote! { Self(value == 1) },
+                SupportedNewType::F32 => quote! { Self(f32::from_bits(value)) },
+                SupportedNewType::I32 => quote! { unsafe { Self(std::mem::transmute(value)) } },
+                SupportedNewType::U32 => quote! { Self(value) }
+            };
+
+            let f64_to_value = match new_type {
+                SupportedNewType::Bool => quote! { d as u32 },
+                SupportedNewType::F32 => quote! { (d as f32).to_bits() },
+                SupportedNewType::I32 => quote! { unsafe { std::mem::transmute(d as i32) } },
+                SupportedNewType::U32 => quote! { d as u32 }
+            };
+
+            let value_to_f64 = match new_type {
+                SupportedNewType::Bool => quote! { value as f64 },
+                SupportedNewType::F32 => quote! { f32::from_bits(value) as f64 },
+                SupportedNewType::I32 => quote! { unsafe { std::mem::transmute::<u32, i32>(value) as f64 } },
+                SupportedNewType::U32 => quote! { value as f64 },
+            };
+
+            let parameter_arithmetic_macro = match new_type {
+                SupportedNewType::Bool => quote! { },
+                SupportedNewType::F32 | SupportedNewType::I32 | SupportedNewType::U32 => quote! { #[pure_audio::pure_audio_proc_macro::parameter_arithmetic] }
+            };
     
-                    let new_type = if let Type::Path(TypePath { path, .. }) = &unnamed[0].ty {
-                        let ident = path.get_ident().map(|ident| ident.to_string());
-                        match ident.as_ref().map(String::as_str) {
-                            Some("bool") => Some(SupportedNewType::Bool),
-                            Some("f32") => Some(SupportedNewType::F32),
-                            Some("i32") => Some(SupportedNewType::I32),
-                            Some("u32") => Some(SupportedNewType::U32),
+            let implementation = quote! {
+                #[derive(Copy, Clone)] 
+                #parameter_arithmetic_macro
+                #s
+    
+                impl pure_audio::Parameter for #struct_name {
+                    const DESCRIPTOR: pure_audio::ParameterDescriptor = pure_audio::ParameterDescriptor {
+                        name: #name,
+                        default_value: #default_value,
+                        min_value: #min_value,
+                        max_value: #max_value,
+                        kind: #kind
+                    };
+                    
+                    #[inline]
+                    fn from_parameter(value: u32) -> Self {
+                        #from_parameter
+                    }
+
+                    #[inline]
+                    fn f64_to_value(d: f64) -> u32 {
+                        #f64_to_value
+                    }
+                    
+                    #[inline]
+                    fn value_to_f64(value: u32) -> f64 {
+                        #value_to_f64
+                    }
+                    
+                    #text_to_value
+
+                    #value_to_text
+                }
+            };
+
+            Ok(TokenStream::from(implementation))
+        },
+        Item::Enum(ref e) => {
+            let variant_names = 
+                e
+                    .variants
+                    .iter()
+                    .map(|v| {
+                        if v.fields.is_empty() {
+                            Ok(v.ident.to_string())
+                        } else {
+                            Err(syn::Error::new(v.span(), "enum variants with fields are not supported"))
+                        }
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+
+            if variant_names.is_empty() {
+                return Err(syn::Error::new(e.span(), "enum must have at least one variant"))
+            }
+
+            let max_value = (variant_names.len() - 1) as f32;
+            
+            let ParameterAttrs { name,  text_to_value, value_to_text, .. }  = syn::parse::<ParameterAttrs<true, true>>(attr)?;
+
+            let enum_name = &e.ident;
+            let name = name.unwrap_or(enum_name.to_string());
+            let default_value = 0.0f32;
+            let min_value = 0.0f32;
+            let max_value = max_value;                    
+
+            let text_to_value = if let Some(expr) = text_to_value {
+                quote! {
+                    #[inline]
+                    fn text_to_value(text: &str) -> Option<f64> {
+                        #expr(text) 
+                    }
+                }
+            } else {
+                let (variant_values, variant_names): (Vec<_>, Vec<_>) = 
+                    variant_names
+                        .iter()
+                        .enumerate()
+                        .map(|(index, value)| (index as f64, value.to_lowercase()))
+                        .unzip();
+                quote! {
+                    #[inline]
+                    fn text_to_value(text: &str) -> Option<f64> {
+                        match text.to_lowercase().as_str() {
+                            #(#variant_names => Some(#variant_values),)*
                             _ => None
                         }
-                    } else {
-                        None
-                    };
+                    }
+                }
+            };
+
+            let value_to_text = if let Some(expr) = value_to_text {
+                quote! { 
+                    #[inline]
+                    fn value_to_text(value: f64, writer: &mut impl std::fmt::Write) -> bool {
+                        #expr(value, writer)
+                    } 
+                }
+            } else {
+                let (variant_values, variant_names): (Vec<_>, Vec<_>) = 
+                    variant_names
+                        .iter()
+                        .enumerate()
+                        .map(|(index, value)| (index as f64, value))
+                        .unzip();
+                quote! { 
+                    #[inline]
+                    fn value_to_text(value: f64, writer: &mut impl std::fmt::Write) -> bool {
+                        let value_str = match value {
+                            #(#variant_values => #variant_names,)*
+                            _ => return false
+                        };
+                        write!(writer, "{value_str}").is_ok()
+                    }
+                }
+            };    
     
-                    let Some(new_type) = new_type else {                    
-                        return TokenStream::from(syn::Error::new(item.span(), "type must be a tuple struct with a single bool, f32, i32 or u32 field").into_compile_error());
-                    };
+            let implementation = quote! {
+                #[derive(Copy, Clone)]
+                #[repr(u32)]
+                #e
     
-                    let struct_name = &ident;
-                    let (name, default_value, min_value, max_value, text_to_value, value_to_text) = {
-                        match new_type {
-                            SupportedNewType::Bool => {
-                                let BoolEnumParameterAttrs { name, text_to_value, value_to_text, .. }  = parse_macro_input!(attr as BoolEnumParameterAttrs);
-                                (name, Some(0.0), Some(0.0), Some(1.0), text_to_value, value_to_text)
-                            },
-                            SupportedNewType::F32 => {
-                                let ParameterAttrs { name, default_value, min_value, max_value, text_to_value, value_to_text }  = parse_macro_input!(attr as ParameterAttrs<false, false>);
-                                (name, default_value, min_value, max_value, text_to_value, value_to_text)
-                            },
-                            SupportedNewType::I32 => {
-                                let ParameterAttrs { name, default_value, min_value, max_value, text_to_value, value_to_text }  = parse_macro_input!(attr as ParameterAttrs<true, false>);
-                                (name, default_value, min_value, max_value, text_to_value, value_to_text)
-                            },
-                            SupportedNewType::U32 => {                            
-                                let ParameterAttrs { name, default_value, min_value, max_value, text_to_value, value_to_text }  = parse_macro_input!(attr as ParameterAttrs<true, true>);
-                                (name, default_value, min_value, max_value, text_to_value, value_to_text)
-                            }
-                        }
+                impl pure_audio::Parameter for #enum_name {
+                    const DESCRIPTOR: pure_audio::ParameterDescriptor = pure_audio::ParameterDescriptor {
+                        name: #name,
+                        default_value: #default_value,
+                        min_value: #min_value,
+                        max_value: #max_value,
+                        kind: pure_audio::ParameterKind::Enum(&[
+                            #(#variant_names,)*
+                        ])
                     };
-    
-                    let name = name.unwrap_or(struct_name.to_string());
-                    let default_value = default_value.unwrap_or(1.0);
-                    let min_value = min_value.unwrap_or(0.0);
-                    let max_value = max_value.unwrap_or(1.0);
-    
-                    let text_to_value = if let Some(expr) = text_to_value {
-                        quote! {
-                            #[inline]
-                            fn text_to_value(text: &str) -> Option<f64> {
-                                #expr(text) 
-                            }
-                        }
-                    } else {
-                        quote! { }
-                    };
-                    let value_to_text = if let Some(expr) = value_to_text {
-                        quote! { 
-                            #[inline]
-                            fn value_to_text(value: f64, writer: &mut impl std::fmt::Write) -> bool {
-                                #expr(value, writer)
-                            } 
-                        }
-                    } else {
-                        quote! { }
-                    };
-    
-                    let kind = match new_type {
-                        SupportedNewType::Bool => quote! { pure_audio::ParameterKind::Bool },
-                        SupportedNewType::F32 => quote! { pure_audio::ParameterKind::F32 },
-                        SupportedNewType::I32 => quote! { pure_audio::ParameterKind::I32 },
-                        SupportedNewType::U32 => quote! { pure_audio::ParameterKind::U32 }
-                    };
-    
-                    let from_parameter = match new_type {
-                        SupportedNewType::Bool => quote! { Self(value == 1) },
-                        SupportedNewType::F32 => quote! { Self(f32::from_bits(value)) },
-                        SupportedNewType::I32 => quote! { unsafe { Self(std::mem::transmute(value)) } },
-                        SupportedNewType::U32 => quote! { Self(value) }
-                    };
-    
-                    let f64_to_value = match new_type {
-                        SupportedNewType::Bool => quote! { d as u32 },
-                        SupportedNewType::F32 => quote! { (d as f32).to_bits() },
-                        SupportedNewType::I32 => quote! { unsafe { std::mem::transmute(d as i32) } },
-                        SupportedNewType::U32 => quote! { d as u32 }
-                    };
-    
-                    let value_to_f64 = match new_type {
-                        SupportedNewType::Bool => quote! { value as f64 },
-                        SupportedNewType::F32 => quote! { f32::from_bits(value) as f64 },
-                        SupportedNewType::I32 => quote! { unsafe { std::mem::transmute::<u32, i32>(value) as f64 } },
-                        SupportedNewType::U32 => quote! { value as f64 },
-                    };
-    
-                    let parameter_arithmetic_macro = match new_type {
-                        SupportedNewType::Bool => quote! { },
-                        SupportedNewType::F32 | SupportedNewType::I32 | SupportedNewType::U32 => quote! { #[pure_audio::pure_audio_proc_macro::parameter_arithmetic] }
-                    };
-            
-                    let implementation = quote! {
-                        #[derive(Copy, Clone)] 
-                        #parameter_arithmetic_macro
-                        #s
-            
-                        impl pure_audio::Parameter for #struct_name {
-                            const DESCRIPTOR: pure_audio::ParameterDescriptor = pure_audio::ParameterDescriptor {
-                                name: #name,
-                                default_value: #default_value,
-                                min_value: #min_value,
-                                max_value: #max_value,
-                                kind: #kind
-                            };
-                            
-                            #[inline]
-                            fn from_parameter(value: u32) -> Self {
-                                #from_parameter
-                            }
-        
-                            #[inline]
-                            fn f64_to_value(d: f64) -> u32 {
-                                #f64_to_value
-                            }
-                            
-                            #[inline]
-                            fn value_to_f64(value: u32) -> f64 {
-                                #value_to_f64
-                            }
-                            
-                            #text_to_value
-    
-                            #value_to_text
-                        }
-                    };
-    
-                    TokenStream::from(implementation)
-                },
-                Item::Enum(ref e) => {
-                    let variant_names = 
-                        e
-                            .variants
-                            .iter()
-                            .map(|v| {
-                                if v.fields.is_empty() {
-                                    Ok(v.ident.to_string())
-                                } else {
-                                    Err(TokenStream::from(syn::Error::new(v.span(), "enum variants with fields are not supported").into_compile_error()))
-                                }
-                            })
-                            .collect::<Result<Vec<_>, _>>();
                     
-                    if let Err(e) = variant_names {
-                        return e;
+                    #[inline]
+                    fn from_parameter(value: u32) -> Self {
+                        unsafe { core::mem::transmute(value) }
                     }
 
-                    let variant_names = variant_names.unwrap();
-
-                    if variant_names.is_empty() {
-                        return TokenStream::from(syn::Error::new(e.span(), "enum must have at least one variant").into_compile_error())
+                    #[inline]
+                    fn f64_to_value(d: f64) -> u32 {
+                        d as u32
                     }
-
-                    let max_value = (variant_names.len() - 1) as f32;
                     
-                    let ParameterAttrs { name,  text_to_value, value_to_text, .. }  = parse_macro_input!(attr as ParameterAttrs<true, true>);
-    
-                    let enum_name = &e.ident;
-                    let name = name.unwrap_or(enum_name.to_string());
-                    let default_value = 0.0f32;
-                    let min_value = 0.0f32;
-                    let max_value = max_value;                    
-    
-                    let text_to_value = if let Some(expr) = text_to_value {
-                        quote! {
-                            #[inline]
-                            fn text_to_value(text: &str) -> Option<f64> {
-                                #expr(text) 
-                            }
-                        }
-                    } else {
-                        let (variant_values, variant_names): (Vec<_>, Vec<_>) = 
-                            variant_names
-                                .iter()
-                                .enumerate()
-                                .map(|(index, value)| (index as f64, value.to_lowercase()))
-                                .unzip();
-                        quote! {
-                            #[inline]
-                            fn text_to_value(text: &str) -> Option<f64> {
-                                match text.to_lowercase().as_str() {
-                                    #(#variant_names => Some(#variant_values),)*
-                                    _ => None
-                                }
-                            }
-                        }
-                    };
+                    #[inline]
+                    fn value_to_f64(value: u32) -> f64 {
+                        value as f64
+                    }
+                    
+                    #text_to_value
 
-                    let value_to_text = if let Some(expr) = value_to_text {
-                        quote! { 
-                            #[inline]
-                            fn value_to_text(value: f64, writer: &mut impl std::fmt::Write) -> bool {
-                                #expr(value, writer)
-                            } 
-                        }
-                    } else {
-                        let (variant_values, variant_names): (Vec<_>, Vec<_>) = 
-                            variant_names
-                                .iter()
-                                .enumerate()
-                                .map(|(index, value)| (index as f64, value))
-                                .unzip();
-                        quote! { 
-                            #[inline]
-                            fn value_to_text(value: f64, writer: &mut impl std::fmt::Write) -> bool {
-                                let value_str = match value {
-                                    #(#variant_values => #variant_names,)*
-                                    _ => return false
-                                };
-                                write!(writer, "{value_str}").is_ok()
-                            }
-                        }
-                    };    
-            
-                    let implementation = quote! {
-                        #[derive(Copy, Clone)]
-                        #[repr(u32)]
-                        #e
-            
-                        impl pure_audio::Parameter for #enum_name {
-                            const DESCRIPTOR: pure_audio::ParameterDescriptor = pure_audio::ParameterDescriptor {
-                                name: #name,
-                                default_value: #default_value,
-                                min_value: #min_value,
-                                max_value: #max_value,
-                                kind: pure_audio::ParameterKind::Enum
-                            };
-                            
-                            #[inline]
-                            fn from_parameter(value: u32) -> Self {
-                                unsafe { core::mem::transmute(value) }
-                            }
-        
-                            #[inline]
-                            fn f64_to_value(d: f64) -> u32 {
-                                d as u32
-                            }
-                            
-                            #[inline]
-                            fn value_to_f64(value: u32) -> f64 {
-                                value as f64
-                            }
-                            
-                            #text_to_value
-    
-                            #value_to_text
-                        }
-                    };
-    
-                    TokenStream::from(implementation)
-                },
-                _ => TokenStream::from(syn::Error::new(item.span(), "type not supported").into_compile_error())
-            }
+                    #value_to_text
+                }
+            };
+
+            Ok(TokenStream::from(implementation))
         },
-        Err(err) => {
-            TokenStream::from(err.into_compile_error())
-        },
+        _ => Err(syn::Error::new(item.span(), "type not supported"))
     }
 }
 

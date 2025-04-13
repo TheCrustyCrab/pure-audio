@@ -53,10 +53,10 @@ where
             info.id = index;
             // todo: add to ParameterDescriptor if needed (specific to CLAP)
             info.flags = CLAP_PARAM_IS_AUTOMATABLE | CLAP_PARAM_IS_MODULATABLE;
-            if let ParameterKind::Bool | ParameterKind::Enum | ParameterKind::I32 | ParameterKind::U32 = desc.kind {
+            if let ParameterKind::Bool | ParameterKind::Enum(_) | ParameterKind::I32 | ParameterKind::U32 = desc.kind {
                 info.flags |= CLAP_PARAM_IS_STEPPED; 
 
-                if let ParameterKind::Enum = desc.kind {
+                if let ParameterKind::Enum(_) = desc.kind {
                     // This parameter represents an enumerated value.
                     // If you set this flag, then you must set CLAP_PARAM_IS_STEPPED too.
                     // All values from min to max must not have a blank value_to_text().
