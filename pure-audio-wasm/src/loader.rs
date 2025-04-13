@@ -1,6 +1,6 @@
 use crate::{es_module::{ImportMeta, IMPORT_META}, PureAudioWorkletNode, PROCESSOR_BLOCK_LENGTH};
 use js_sys::{Array, Object, Reflect};
-use pure_audio::{AutomationRate, IntoProcessor, ParameterDescriptor};
+use pure_audio::{AutomationRate, IntoProcessor, ParameterDescriptor, ParameterKind};
 use wasm_bindgen::{prelude::Closure, JsCast, JsValue, UnwrapThrowExt};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{console::log_1, window, AudioContext, AudioWorkletNodeOptions, Blob, BlobPropertyBag, ChannelCountMode, HtmlInputElement, Url};
@@ -38,7 +38,7 @@ where
         let body = document.body().unwrap();
         let control = document.create_element("div")?;
         let param_map = audio_worklet_node.parameters().unwrap();
-        for (ParameterDescriptor { name, default_value, min_value, max_value, is_stepped }, ..) in P::PARAM_DESCRIPTORS {
+        for (ParameterDescriptor { name, default_value, min_value, max_value, kind }, ..) in P::PARAM_DESCRIPTORS {
             let paragraph = document.create_element("p")?;
             paragraph.set_text_content(Some(&format!("{name}:")));
             let slider = document.create_element("input")?.dyn_into::<HtmlInputElement>()?;
@@ -46,7 +46,11 @@ where
             slider.set_min(&min_value.to_string());
             slider.set_max(&max_value.to_string());
             slider.set_value(&default_value.to_string());
-            slider.set_step( if is_stepped { "1" } else { "0.01" });
+            let step = match kind {
+                ParameterKind::Bool | ParameterKind::Enum | ParameterKind::I32 | ParameterKind::U32 => "1",
+                ParameterKind::F32 => "0.01"
+            };
+            slider.set_step(step);
             let parameter = param_map.get(name).unwrap();
             let port = port.clone();
             let closure = Closure::<dyn Fn(_)>::new(move |event: web_sys::Event| {
@@ -122,7 +126,11 @@ where
                 let data_offset = std::mem::align_of::<Option<[f32; PROCESSOR_BLOCK_LENGTH]>>() / 4;
                 let offset = data_offset + i * (PROCESSOR_BLOCK_LENGTH + data_offset);
                 // for a-rate parameters, the array will only contain multiple (128) values when necessary (e.g. during a linear ramp)
-                let memory = if desc.is_stepped { "uint32Memory" } else { "float32Memory" };
+                let memory = match desc.kind {
+                    ParameterKind::Bool | ParameterKind::Enum | ParameterKind::U32 => "uint32Memory",
+                    ParameterKind::F32 => "float32Memory",
+                    ParameterKind::I32 => "int32Memory"                     
+                };
                 format!(
                     r#"
                         if (parameters['{name}'].length > 1) {{ 
@@ -140,7 +148,7 @@ where
         P::PARAM_DESCRIPTORS
             .iter()
             .enumerate()
-            .map(|(index, &(ParameterDescriptor { name, default_value, min_value, max_value, is_stepped }, automation_rate))| {
+            .map(|(index, &(ParameterDescriptor { name, default_value, min_value, max_value, kind }, automation_rate))| {
                 (format!(
                     r#"{{
                         name: '{name}',
@@ -150,10 +158,13 @@ where
                         automationRate: '{automation_rate}'
                     }}
                     "#
-                ), if is_stepped { 
-                    format!("this.uint32Memory[this.parametersPtr + {index}] = parameters['{name}'][0];")
-                } else {
-                    format!("this.float32Memory[this.parametersPtr + {index}] = parameters['{name}'][0];")                    
+                ), {
+                        let memory = match kind {
+                            ParameterKind::Bool | ParameterKind::Enum | ParameterKind::U32 => "uint32Memory",
+                            ParameterKind::F32 => "float32Memory",
+                            ParameterKind::I32 => "int32Memory"                     
+                        };
+                        format!("this.{memory}[this.parametersPtr + {index}] = parameters['{name}'][0];")
                 })
             })
             .unzip();
@@ -195,6 +206,7 @@ where
                 this.parametersPerSamplePtr = this.processor.get_parameters_per_sample_ptr() / 4; // NUM_PARAMS * Option<[f32; 128]>
                 this.float32Memory = new Float32Array(memory.buffer);
                 this.uint32Memory = new Uint32Array(memory.buffer);
+                this.int32Memory = new Int32Array(memory.buffer);
             }}
 
             process(inputs, outputs, parameters) {{

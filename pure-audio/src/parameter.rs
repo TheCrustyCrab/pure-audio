@@ -16,12 +16,21 @@ impl Display for AutomationRate {
 }
 
 #[derive(Copy, Clone)]
+pub enum ParameterKind {
+    Bool,
+    Enum,
+    F32,
+    I32,
+    U32
+}
+
+#[derive(Copy, Clone)]
 pub struct ParameterDescriptor {
     pub name: &'static str,
     pub default_value: f32,
     pub min_value: f32,
     pub max_value: f32,
-    pub is_stepped: bool
+    pub kind: ParameterKind
 }
 
 pub trait Parameter {

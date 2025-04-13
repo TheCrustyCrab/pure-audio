@@ -1,7 +1,7 @@
 use pure_audio::{parameter, SamplePrecise, StereoEffectData};
 
-#[parameter(min = 0, max = 1, default = 0.5)]
-pub struct Pan(f32);
+#[parameter(min = -10, max = 10, default = 0)]
+pub struct Pan(i32);
 
 pub fn process(
     StereoEffectData {
@@ -12,6 +12,7 @@ pub fn process(
     pan: SamplePrecise<Pan>
 ) {
     for ((((input_sample_l, output_sample_l), input_sample_r), output_sample_r), pan) in input_l.iter().zip(output_l).zip(input_r).zip(output_r).zip(pan.values()) {
+        let pan = (pan.0 as f32 + 10.0) / 20.0;
         let pan_l = 1.0 - pan;
         *output_sample_l = input_sample_l * pan_l;
         *output_sample_r = input_sample_r * pan;

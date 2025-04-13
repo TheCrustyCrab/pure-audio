@@ -1,5 +1,5 @@
 use proc_macro::TokenStream;
-use proc_macro2::Span;
+use proc_macro2::{Punct, Spacing, Span, TokenTree};
 use quote::{format_ident, quote};
 use syn::{parse::Parse, parse_macro_input, spanned::Spanned, token::Comma, Expr, Fields, FieldsUnnamed, Ident, Item, ItemStruct, LitFloat, LitInt, LitStr, Token, Type, TypePath};
 
@@ -413,9 +413,11 @@ pub fn parameter(attr: TokenStream, input: TokenStream) -> TokenStream {
                         quote! { }
                     };
     
-                    let is_stepped = match new_type {
-                        SupportedNewType::Bool | SupportedNewType::I32 | SupportedNewType::U32 => true,
-                        SupportedNewType::F32 => false
+                    let kind = match new_type {
+                        SupportedNewType::Bool => quote! { pure_audio::ParameterKind::Bool },
+                        SupportedNewType::F32 => quote! { pure_audio::ParameterKind::F32 },
+                        SupportedNewType::I32 => quote! { pure_audio::ParameterKind::I32 },
+                        SupportedNewType::U32 => quote! { pure_audio::ParameterKind::U32 }
                     };
     
                     let from_parameter = match new_type {
@@ -455,7 +457,7 @@ pub fn parameter(attr: TokenStream, input: TokenStream) -> TokenStream {
                                 default_value: #default_value,
                                 min_value: #min_value,
                                 max_value: #max_value,
-                                is_stepped: #is_stepped
+                                kind: #kind
                             };
                             
                             #[inline]
@@ -482,17 +484,30 @@ pub fn parameter(attr: TokenStream, input: TokenStream) -> TokenStream {
                     TokenStream::from(implementation)
                 },
                 Item::Enum(ref e) => {
-                    let mut max_value = -1;
-                    for v in &e.variants {
-                        if !v.fields.is_empty() {
-                            return TokenStream::from(syn::Error::new(v.span(), "enum variants with fields are not supported").into_compile_error())
-                        }
-                        max_value += 1;
+                    let variant_names = 
+                        e
+                            .variants
+                            .iter()
+                            .map(|v| {
+                                if v.fields.is_empty() {
+                                    Ok(v.ident.to_string())
+                                } else {
+                                    Err(TokenStream::from(syn::Error::new(v.span(), "enum variants with fields are not supported").into_compile_error()))
+                                }
+                            })
+                            .collect::<Result<Vec<_>, _>>();
+                    
+                    if let Err(e) = variant_names {
+                        return e;
                     }
 
-                    if max_value == -1 {
+                    let variant_names = variant_names.unwrap();
+
+                    if variant_names.is_empty() {
                         return TokenStream::from(syn::Error::new(e.span(), "enum must have at least one variant").into_compile_error())
                     }
+
+                    let max_value = (variant_names.len() - 1) as f32;
                     
                     let ParameterAttrs { name,  text_to_value, value_to_text, .. }  = parse_macro_input!(attr as ParameterAttrs<true, true>);
     
@@ -500,7 +515,7 @@ pub fn parameter(attr: TokenStream, input: TokenStream) -> TokenStream {
                     let name = name.unwrap_or(enum_name.to_string());
                     let default_value = 0.0f32;
                     let min_value = 0.0f32;
-                    let max_value = max_value as f32;                    
+                    let max_value = max_value;                    
     
                     let text_to_value = if let Some(expr) = text_to_value {
                         quote! {
@@ -510,8 +525,23 @@ pub fn parameter(attr: TokenStream, input: TokenStream) -> TokenStream {
                             }
                         }
                     } else {
-                        quote! { }
+                        let (variant_values, variant_names): (Vec<_>, Vec<_>) = 
+                            variant_names
+                                .iter()
+                                .enumerate()
+                                .map(|(index, value)| (index as f64, value.to_lowercase()))
+                                .unzip();
+                        quote! {
+                            #[inline]
+                            fn text_to_value(text: &str) -> Option<f64> {
+                                match text.to_lowercase().as_str() {
+                                    #(#variant_names => Some(#variant_values),)*
+                                    _ => None
+                                }
+                            }
+                        }
                     };
+
                     let value_to_text = if let Some(expr) = value_to_text {
                         quote! { 
                             #[inline]
@@ -520,7 +550,22 @@ pub fn parameter(attr: TokenStream, input: TokenStream) -> TokenStream {
                             } 
                         }
                     } else {
-                        quote! { }
+                        let (variant_values, variant_names): (Vec<_>, Vec<_>) = 
+                            variant_names
+                                .iter()
+                                .enumerate()
+                                .map(|(index, value)| (index as f64, value))
+                                .unzip();
+                        quote! { 
+                            #[inline]
+                            fn value_to_text(value: f64, writer: &mut impl std::fmt::Write) -> bool {
+                                let value_str = match value {
+                                    #(#variant_values => #variant_names,)*
+                                    _ => return false
+                                };
+                                write!(writer, "{value_str}").is_ok()
+                            }
+                        }
                     };    
             
                     let implementation = quote! {
@@ -534,7 +579,7 @@ pub fn parameter(attr: TokenStream, input: TokenStream) -> TokenStream {
                                 default_value: #default_value,
                                 min_value: #min_value,
                                 max_value: #max_value,
-                                is_stepped: true
+                                kind: pure_audio::ParameterKind::Enum
                             };
                             
                             #[inline]
@@ -585,264 +630,98 @@ pub fn parameter_arithmetic(_attr: TokenStream, input: TokenStream) -> TokenStre
         let inner_type = &unnamed[0].ty;
 
         let name = ident;
+        let ops_traits_tokens = [
+            ("Add", '+'),
+            ("Div", '/'),
+            ("Mul", '*'),
+            ("Sub", '-')
+        ];
+
+        let impls = 
+            ops_traits_tokens
+                .map(|(op_trait, op_token)| {
+                    let op_trait_ident = format_ident!("{op_trait}");
+                    let op_fn_ident = format_ident!("{}", op_trait.to_lowercase());
+                    let op_token_tree = TokenTree::Punct(Punct::new(op_token, Spacing::Alone));
+                    quote! {
+                        impl std::ops::#op_trait_ident<#inner_type> for #name {
+                            type Output = #inner_type;
+                        
+                            #[inline]
+                            fn #op_fn_ident(self, rhs: #inner_type) -> Self::Output {
+                                self.0 #op_token_tree rhs
+                            }
+                        }
+            
+                        impl std::ops::#op_trait_ident<&#inner_type> for #name {
+                            type Output = #inner_type;
+                        
+                            #[inline]
+                            fn #op_fn_ident(self, rhs: &#inner_type) -> Self::Output {
+                                self.0 #op_token_tree rhs
+                            }
+                        }
+            
+                        impl std::ops::#op_trait_ident<#name> for #inner_type {
+                            type Output = #inner_type;
+                        
+                            #[inline]
+                            fn #op_fn_ident(self, rhs: #name) -> Self::Output {
+                                self #op_token_tree rhs.0
+                            }
+                        }
+            
+                        impl std::ops::#op_trait_ident<#name> for &#inner_type {
+                            type Output = #inner_type;
+                        
+                            #[inline]
+                            fn #op_fn_ident(self, rhs: #name) -> Self::Output {
+                                self #op_token_tree rhs.0
+                            }
+                        }
+
+                        impl std::ops::#op_trait_ident<#inner_type> for &#name {
+                            type Output = #inner_type;
+                        
+                            #[inline]
+                            fn #op_fn_ident(self, rhs: #inner_type) -> Self::Output {
+                                self.0 #op_token_tree rhs
+                            }
+                        }
+            
+                        impl std::ops::#op_trait_ident<&#inner_type> for &#name {
+                            type Output = #inner_type;
+                        
+                            #[inline]
+                            fn #op_fn_ident(self, rhs: &#inner_type) -> Self::Output {
+                                self.0 #op_token_tree rhs
+                            }
+                        }
+            
+                        impl std::ops::#op_trait_ident<&#name> for #inner_type {
+                            type Output = #inner_type;
+                        
+                            #[inline]
+                            fn #op_fn_ident(self, rhs: &#name) -> Self::Output {
+                                self #op_token_tree rhs.0
+                            }
+                        }
+            
+                        impl std::ops::#op_trait_ident<&#name> for &#inner_type {
+                            type Output = #inner_type;
+                        
+                            #[inline]
+                            fn #op_fn_ident(self, rhs: &#name) -> Self::Output {
+                                self #op_token_tree rhs.0
+                            }
+                        }
+                    }
+                });
+
         let implementation = quote! {
             #s
 
-            impl std::ops::Add<#inner_type> for #name {
-                type Output = #inner_type;
-            
-                fn add(self, rhs: #inner_type) -> Self::Output {
-                    self.0 + rhs
-                }
-            }
-            
-            impl std::ops::Add<&#inner_type> for #name {
-                type Output = #inner_type;
-            
-                fn add(self, rhs: &#inner_type) -> Self::Output {
-                    self.0 + rhs
-                }
-            }
-            
-            impl std::ops::Add<#name> for #inner_type {
-                type Output = #inner_type;
-            
-                fn add(self, rhs: #name) -> Self::Output {
-                    self + rhs.0
-                }
-            }
-            
-            impl std::ops::Add<#name> for &#inner_type {
-                type Output = #inner_type;
-            
-                fn add(self, rhs: #name) -> Self::Output {
-                    self + rhs.0
-                }
-            }
-
-            impl std::ops::Add<#inner_type> for &#name {
-                type Output = #inner_type;
-            
-                fn add(self, rhs: #inner_type) -> Self::Output {
-                    self.0 + rhs
-                }
-            }
-            
-            impl std::ops::Add<&#inner_type> for &#name {
-                type Output = #inner_type;
-            
-                fn add(self, rhs: &#inner_type) -> Self::Output {
-                    self.0 + rhs
-                }
-            }
-            
-            impl std::ops::Add<&#name> for #inner_type {
-                type Output = #inner_type;
-            
-                fn add(self, rhs: &#name) -> Self::Output {
-                    self + rhs.0
-                }
-            }
-            
-            impl std::ops::Add<&#name> for &#inner_type {
-                type Output = #inner_type;
-            
-                fn add(self, rhs: &#name) -> Self::Output {
-                    self + rhs.0
-                }
-            }
-    
-            impl std::ops::Div<#inner_type> for #name {
-                type Output = #inner_type;
-            
-                fn div(self, rhs: #inner_type) -> Self::Output {
-                    self.0 / rhs
-                }
-            }
-            
-            impl std::ops::Div<&#inner_type> for #name {
-                type Output = #inner_type;
-            
-                fn div(self, rhs: &#inner_type) -> Self::Output {
-                    self.0 / rhs
-                }
-            }
-            
-            impl std::ops::Div<#name> for #inner_type {
-                type Output = #inner_type;
-            
-                fn div(self, rhs: #name) -> Self::Output {
-                    self / rhs.0
-                }
-            }
-            
-            impl std::ops::Div<#name> for &#inner_type {
-                type Output = #inner_type;
-            
-                fn div(self, rhs: #name) -> Self::Output {
-                    self / rhs.0
-                }
-            }
-    
-            impl std::ops::Div<#inner_type> for &#name {
-                type Output = #inner_type;
-            
-                fn div(self, rhs: #inner_type) -> Self::Output {
-                    self.0 / rhs
-                }
-            }
-            
-            impl std::ops::Div<&#inner_type> for &#name {
-                type Output = #inner_type;
-            
-                fn div(self, rhs: &#inner_type) -> Self::Output {
-                    self.0 / rhs
-                }
-            }
-            
-            impl std::ops::Div<&#name> for #inner_type {
-                type Output = #inner_type;
-            
-                fn div(self, rhs: &#name) -> Self::Output {
-                    self / rhs.0
-                }
-            }
-            
-            impl std::ops::Div<&#name> for &#inner_type {
-                type Output = #inner_type;
-            
-                fn div(self, rhs: &#name) -> Self::Output {
-                    self / rhs.0
-                }
-            }
-    
-            impl std::ops::Mul<#inner_type> for #name {
-                type Output = #inner_type;
-            
-                fn mul(self, rhs: #inner_type) -> Self::Output {
-                    self.0 * rhs
-                }
-            }
-            
-            impl std::ops::Mul<&#inner_type> for #name {
-                type Output = #inner_type;
-            
-                fn mul(self, rhs: &#inner_type) -> Self::Output {
-                    self.0 * rhs
-                }
-            }
-            
-            impl std::ops::Mul<#name> for #inner_type {
-                type Output = #inner_type;
-            
-                fn mul(self, rhs: #name) -> Self::Output {
-                    self * rhs.0
-                }
-            }
-            
-            impl std::ops::Mul<#name> for &#inner_type {
-                type Output = #inner_type;
-            
-                fn mul(self, rhs: #name) -> Self::Output {
-                    self * rhs.0
-                }
-            }
-    
-            impl std::ops::Mul<#inner_type> for &#name {
-                type Output = #inner_type;
-            
-                fn mul(self, rhs: #inner_type) -> Self::Output {
-                    self.0 * rhs
-                }
-            }
-            
-            impl std::ops::Mul<&#inner_type> for &#name {
-                type Output = #inner_type;
-            
-                fn mul(self, rhs: &#inner_type) -> Self::Output {
-                    self.0 * rhs
-                }
-            }
-            
-            impl std::ops::Mul<&#name> for #inner_type {
-                type Output = #inner_type;
-            
-                fn mul(self, rhs: &#name) -> Self::Output {
-                    self * rhs.0
-                }
-            }
-            
-            impl std::ops::Mul<&#name> for &#inner_type {
-                type Output = #inner_type;
-            
-                fn mul(self, rhs: &#name) -> Self::Output {
-                    self * rhs.0
-                }
-            }
-    
-            impl std::ops::Sub<#inner_type> for #name {
-                type Output = #inner_type;
-            
-                fn sub(self, rhs: #inner_type) -> Self::Output {
-                    self.0 - rhs
-                }
-            }
-            
-            impl std::ops::Sub<&#inner_type> for #name {
-                type Output = #inner_type;
-            
-                fn sub(self, rhs: &#inner_type) -> Self::Output {
-                    self.0 - rhs
-                }
-            }
-            
-            impl std::ops::Sub<#name> for #inner_type {
-                type Output = #inner_type;
-            
-                fn sub(self, rhs: #name) -> Self::Output {
-                    self - rhs.0
-                }
-            }
-            
-            impl std::ops::Sub<#name> for &#inner_type {
-                type Output = #inner_type;
-            
-                fn sub(self, rhs: #name) -> Self::Output {
-                    self - rhs.0
-                }
-            }
-    
-            impl std::ops::Sub<#inner_type> for &#name {
-                type Output = #inner_type;
-            
-                fn sub(self, rhs: #inner_type) -> Self::Output {
-                    self.0 - rhs
-                }
-            }
-            
-            impl std::ops::Sub<&#inner_type> for &#name {
-                type Output = #inner_type;
-            
-                fn sub(self, rhs: &#inner_type) -> Self::Output {
-                    self.0 - rhs
-                }
-            }
-            
-            impl std::ops::Sub<&#name> for #inner_type {
-                type Output = #inner_type;
-            
-                fn sub(self, rhs: &#name) -> Self::Output {
-                    self - rhs.0
-                }
-            }
-            
-            impl std::ops::Sub<&#name> for &#inner_type {
-                type Output = #inner_type;
-            
-                fn sub(self, rhs: &#name) -> Self::Output {
-                    self - rhs.0
-                }
-            }
+            #(#impls)*
         };
     
         TokenStream::from(implementation)
