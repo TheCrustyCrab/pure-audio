@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::{Punct, Spacing, Span, TokenTree};
 use quote::{format_ident, quote};
-use syn::{parse::Parse, parse_macro_input, spanned::Spanned, token::Comma, Expr, Fields, FieldsUnnamed, Ident, Item, ItemStruct, LitFloat, LitInt, LitStr, Token, Type, TypePath};
+use syn::{parse::Parse, parse_macro_input, spanned::Spanned, token::Comma, Expr, Fields, FieldsUnnamed, Ident, Item, ItemStruct, LitBool, LitFloat, LitInt, LitStr, Token, Type, TypePath};
 
 struct ForParamsInput {
     macro_ident: Ident,
@@ -268,50 +268,120 @@ impl<const ONLY_INTEGERS: bool, const ONLY_UNSIGNED: bool> Parse for ParameterAt
     }
 }
 
-enum BoolEnumParameterAttr {
+enum BoolParameterAttr {
     Name(LitStr),
+    DefaultValue(LitBool),
     TextToValue(Expr),
     ValueToText(Expr)
 }
 
-impl Parse for BoolEnumParameterAttr {
+impl Parse for BoolParameterAttr {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let key_token = input.parse::<Ident>()?;
         let key = key_token.to_string();
         input.parse::<Token![=]>()?;
         match key.as_ref() {
-            "name" => Ok(BoolEnumParameterAttr::Name(input.parse()?)),
-            "text_to_value" => Ok(BoolEnumParameterAttr::TextToValue(input.parse()?)),
-            "value_to_text" => Ok(BoolEnumParameterAttr::ValueToText(input.parse()?)),
-            _ => Err(syn::Error::new(key_token.span(), format!("attribute '{key}' is not supported for bool and enum types")))
+            "name" => Ok(BoolParameterAttr::Name(input.parse()?)),
+            "default" => Ok(BoolParameterAttr::DefaultValue(input.parse()?)),
+            "text_to_value" => Ok(BoolParameterAttr::TextToValue(input.parse()?)),
+            "value_to_text" => Ok(BoolParameterAttr::ValueToText(input.parse()?)),
+            _ => Err(syn::Error::new(key_token.span(), format!("attribute '{key}' is not supported for bool types")))
         }
     }
 }
 
-struct BoolEnumParameterAttrs{
+struct BoolParameterAttrs {
     name: Option<String>,
+    default_value: Option<f32>,
     text_to_value: Option<Expr>,
-    value_to_text: Option<Expr>
+    value_to_text: Option<Expr>,
 }
 
-impl Parse for BoolEnumParameterAttrs {
+impl Parse for BoolParameterAttrs {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        let attrs = syn::punctuated::Punctuated::<BoolEnumParameterAttr, Comma>::parse_terminated(input)?;
+        let attrs = syn::punctuated::Punctuated::<BoolParameterAttr, Comma>::parse_terminated(input)?;
         
         let mut name = None;
+        let mut default_value = None;
         let mut text_to_value = None;
         let mut value_to_text = None;
 
         for attr in attrs {
             match attr {
-                BoolEnumParameterAttr::Name(lit_str) => name = Some(lit_str.value()),
-                BoolEnumParameterAttr::TextToValue(expr) => text_to_value = Some(expr),
-                BoolEnumParameterAttr::ValueToText(expr) => value_to_text = Some(expr)
+                BoolParameterAttr::Name(lit_str) => name = Some(lit_str.value()),
+                BoolParameterAttr::DefaultValue(lit_bool) => default_value = Some(if lit_bool.value { 1f32 } else { 0f32 }),
+                BoolParameterAttr::TextToValue(expr) => text_to_value = Some(expr),
+                BoolParameterAttr::ValueToText(expr) => value_to_text = Some(expr)
             }
         }
 
         Ok(Self {
             name,
+            default_value,
+            text_to_value,
+            value_to_text
+        })
+    }
+}
+
+enum EnumParameterAttr {
+    Name(LitStr),
+    DefaultValue(LitStr),
+    TextToValue(Expr),
+    ValueToText(Expr)
+}
+
+impl Parse for EnumParameterAttr {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let key_token = input.parse::<Ident>()?;
+        let key = key_token.to_string();
+        input.parse::<Token![=]>()?;
+        match key.as_ref() {
+            "name" => Ok(EnumParameterAttr::Name(input.parse()?)),
+            "default" => Ok(EnumParameterAttr::DefaultValue(input.parse()?)),
+            "text_to_value" => Ok(EnumParameterAttr::TextToValue(input.parse()?)),
+            "value_to_text" => Ok(EnumParameterAttr::ValueToText(input.parse()?)),
+            _ => Err(syn::Error::new(key_token.span(), format!("attribute '{key}' is not supported for enum types")))
+        }
+    }
+}
+
+struct EnumParameterAttrs {
+    name: Option<String>,
+    default_value: Option<f32>,
+    text_to_value: Option<Expr>,
+    value_to_text: Option<Expr>
+}
+
+impl EnumParameterAttrs {
+    fn from_input_and_variants(input: TokenStream, variants: &Vec<String>) -> syn::Result<Self> {
+        let attrs = syn::parse::Parser::parse2(
+            syn::punctuated::Punctuated::<EnumParameterAttr, Comma>::parse_terminated,
+            input.into()
+        )?;
+        
+        let mut name = None;
+        let mut default_value = None;
+        let mut text_to_value = None;
+        let mut value_to_text = None;
+
+        for attr in attrs {
+            match attr {
+                EnumParameterAttr::Name(lit_str) => name = Some(lit_str.value()),
+                EnumParameterAttr::DefaultValue(lit_str) => {
+                    let Some(value) = variants.iter().position(|variant| variant == &lit_str.value()) else {
+                        return Err(syn::Error::new(lit_str.span(), "value is not a variant of the enum"));
+                    };
+                    default_value = Some(value as f32);
+                },
+                EnumParameterAttr::TextToValue(expr) => text_to_value = Some(expr),
+                EnumParameterAttr::ValueToText(expr) => value_to_text = Some(expr)
+            }
+        }
+
+        Ok(Self {
+            name,
+            default_value,
             text_to_value,
             value_to_text
         })
@@ -328,8 +398,11 @@ enum SupportedNewType {
 /// Implements the [`Parameter`] trait for a parameter type.
 /// The type must be an enum or a tuple struct with a single bool, f32, i32 or u32 field.
 /// The following optional attributes can be provided:
-/// - name: string literal (default: name of the type)
-/// - default: float literal (default: 1.0, not for bools and enums)
+/// - name: string literal (default: name of the parameter)
+/// - default: 
+///     - boolean type: bool literal (default: false)
+///     - enum type: string literal (default: first variant)
+///     - numeric types: float literal (default: 1.0)
 /// - min: float literal (default: 0.0, not for bools and enums)
 /// - max: float literal (default: 1.0, not for bools and enums)
 /// - text_to_value: expression refering to a [`fn(&str) -> Option<f64>`] (default: built-in float parsing)
@@ -374,8 +447,8 @@ fn parameter_impl(attr: TokenStream, input: TokenStream) -> Result<TokenStream, 
             let (name, default_value, min_value, max_value, text_to_value, value_to_text) = {
                 match new_type {
                     SupportedNewType::Bool => {
-                        let BoolEnumParameterAttrs { name, text_to_value, value_to_text, .. }  = syn::parse(attr)?;
-                        (name, Some(0.0), Some(0.0), Some(1.0), text_to_value, value_to_text)
+                        let BoolParameterAttrs { name, default_value, text_to_value, value_to_text }  = syn::parse(attr)?;
+                        (name, default_value, Some(0.0), Some(1.0), text_to_value, value_to_text)
                     },
                     SupportedNewType::F32 => {
                         let ParameterAttrs { name, default_value, min_value, max_value, text_to_value, value_to_text }  = syn::parse::<ParameterAttrs<false, false>>(attr)?;
@@ -489,18 +562,21 @@ fn parameter_impl(attr: TokenStream, input: TokenStream) -> Result<TokenStream, 
             Ok(TokenStream::from(implementation))
         },
         Item::Enum(ref e) => {
-            let variant_names = 
+            let (variant_names, variant_values): (Vec<_>, Vec<_>) = 
                 e
                     .variants
                     .iter()
-                    .map(|v| {
+                    .enumerate()
+                    .map(|(index, v)| {
                         if v.fields.is_empty() {
-                            Ok(v.ident.to_string())
+                            Ok((v.ident.to_string(), index as f64))
                         } else {
                             Err(syn::Error::new(v.span(), "enum variants with fields are not supported"))
                         }
                     })
-                    .collect::<Result<Vec<_>, _>>()?;
+                    .collect::<Result<Vec<_>, _>>()?
+                    .into_iter()
+                    .unzip();
 
             if variant_names.is_empty() {
                 return Err(syn::Error::new(e.span(), "enum must have at least one variant"))
@@ -508,12 +584,12 @@ fn parameter_impl(attr: TokenStream, input: TokenStream) -> Result<TokenStream, 
 
             let max_value = (variant_names.len() - 1) as f32;
             
-            let ParameterAttrs { name,  text_to_value, value_to_text, .. }  = syn::parse::<ParameterAttrs<true, true>>(attr)?;
+            let EnumParameterAttrs { name, default_value, text_to_value, value_to_text } = EnumParameterAttrs::from_input_and_variants(attr, &variant_names)?;
 
             let enum_name = &e.ident;
             let name = name.unwrap_or(enum_name.to_string());
-            let default_value = 0.0f32;
-            let min_value = 0.0f32;
+            let default_value = default_value.unwrap_or(0f32);
+            let min_value = 0f32;
             let max_value = max_value;                    
 
             let text_to_value = if let Some(expr) = text_to_value {
@@ -524,17 +600,16 @@ fn parameter_impl(attr: TokenStream, input: TokenStream) -> Result<TokenStream, 
                     }
                 }
             } else {
-                let (variant_values, variant_names): (Vec<_>, Vec<_>) = 
+                let variant_names_lowercase: Vec<_> = 
                     variant_names
                         .iter()
-                        .enumerate()
-                        .map(|(index, value)| (index as f64, value.to_lowercase()))
-                        .unzip();
+                        .map(|name| name.to_lowercase())
+                        .collect();
                 quote! {
                     #[inline]
                     fn text_to_value(text: &str) -> Option<f64> {
                         match text.to_lowercase().as_str() {
-                            #(#variant_names => Some(#variant_values),)*
+                            #(#variant_names_lowercase => Some(#variant_values),)*
                             _ => None
                         }
                     }
@@ -549,12 +624,6 @@ fn parameter_impl(attr: TokenStream, input: TokenStream) -> Result<TokenStream, 
                     } 
                 }
             } else {
-                let (variant_values, variant_names): (Vec<_>, Vec<_>) = 
-                    variant_names
-                        .iter()
-                        .enumerate()
-                        .map(|(index, value)| (index as f64, value))
-                        .unzip();
                 quote! { 
                     #[inline]
                     fn value_to_text(value: f64, writer: &mut impl std::fmt::Write) -> bool {
@@ -565,7 +634,7 @@ fn parameter_impl(attr: TokenStream, input: TokenStream) -> Result<TokenStream, 
                         write!(writer, "{value_str}").is_ok()
                     }
                 }
-            };    
+            };
     
             let implementation = quote! {
                 #[derive(Copy, Clone)]
@@ -718,6 +787,20 @@ pub fn parameter_arithmetic(_attr: TokenStream, input: TokenStream) -> TokenStre
             #s
 
             #(#impls)*
+
+            impl PartialEq<#inner_type> for #name {                
+                #[inline]
+                fn eq(&self, other: &#inner_type) -> bool {
+                    self.0.eq(other)
+                }
+            }
+            
+            impl PartialOrd<#inner_type> for #name {
+                #[inline]
+                fn partial_cmp(&self, other: &#inner_type) -> Option<std::cmp::Ordering> {
+                   self.0.partial_cmp(other)
+                }
+            }
         };
     
         TokenStream::from(implementation)

@@ -3,7 +3,7 @@ use js_sys::{Array, Object, Reflect};
 use pure_audio::{AutomationRate, IntoProcessor, ParameterDescriptor, ParameterKind};
 use wasm_bindgen::{prelude::Closure, JsCast, JsValue, UnwrapThrowExt};
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{console::log_1, window, AudioContext, AudioParamMap, AudioWorkletNodeOptions, Blob, BlobPropertyBag, ChannelCountMode, Document, Element, HtmlInputElement, HtmlLabelElement, MessagePort, Url};
+use web_sys::{console::log_1, window, AudioContext, AudioParam, AudioWorkletNodeOptions, Blob, BlobPropertyBag, ChannelCountMode, HtmlInputElement, HtmlLabelElement, MessagePort, Url};
 
 const AUDIO_CONTEXT_REGISTERED_MODULES_FIELD_NAME: &'static str = "registeredModules";
 
@@ -30,7 +30,6 @@ where
     }
 
     let audio_worklet_node = create_node(name, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, ctx)?;
-    let port = audio_worklet_node.port().unwrap();
 
     if generate_parameter_ui {
         let window = window().unwrap();
@@ -38,50 +37,58 @@ where
         let body = document.body().unwrap();
         let control = document.create_element("div")?;
         let param_map = audio_worklet_node.parameters().unwrap();
+        let port = audio_worklet_node.port().unwrap();        
+
+        fn add_parameter_input_change_event_handler(input_element: &HtmlInputElement, parameter: AudioParam, port: &MessagePort, map_f32: impl Fn(&HtmlInputElement) -> f32 + 'static) 
+        -> Result<(), JsValue> {
+            let port = port.clone();
+            let closure = Closure::<dyn Fn(_)>::new(move |event: web_sys::Event| {
+                let input_element = event.target().unwrap().dyn_into::<HtmlInputElement>().unwrap();
+                let value = map_f32(&input_element);
+                parameter.set_value(value);
+                let msg = Object::new();
+                let _ = Reflect::set(&msg, &"type".into(), &"indicateParamsChanged".into());
+                let _ = port.post_message(&msg);
+            });
+
+            input_element.add_event_listener_with_callback("change", closure.as_ref().unchecked_ref())?;
+
+            // rely on weak references and the JS GC to drop the closure
+           closure.forget();
+
+           Ok(())
+        }
+        
         for (ParameterDescriptor { name, default_value, min_value, max_value, kind }, ..) in P::PARAM_DESCRIPTORS {
             let paragraph = document.create_element("p")?;
             paragraph.set_text_content(Some(&format!("{name}:")));
-
-            fn create_radio_buttons(document: &Document, paragraph: &Element, param_name: &str, param_map: &AudioParamMap, port: &MessagePort, options: &[&str]) -> Result<(), JsValue> {
-                for (value, option) in options.iter().enumerate() {
-                    let radio = document.create_element("input")?.dyn_into::<HtmlInputElement>()?;
-                    radio.set_type("radio");
-                    radio.set_name(param_name);
-                    radio.set_id(option);
-                    radio.set_value(&format!("{value}"));
-                    radio.set_checked(value == 0);
-                    let label = document.create_element("label")?.dyn_into::<HtmlLabelElement>()?;
-                    label.set_html_for(option);
-                    label.set_inner_html(option);
-                    let parameter = param_map.get(param_name).unwrap();
-                    let port = port.clone();
-                    let closure = Closure::<dyn Fn(_)>::new(move |event: web_sys::Event| {
-                        let value: f32 = event.target().unwrap().dyn_into::<HtmlInputElement>().unwrap().value().parse().unwrap();
-                        parameter.set_value(value as f32);
-                        let msg = Object::new();
-                        let _ = Reflect::set(&msg, &"type".into(), &"indicateParamsChanged".into());
-                        let _ = port.post_message(&msg);
-                    });
-
-                    radio.add_event_listener_with_callback("change", closure.as_ref().unchecked_ref())?;
-                    paragraph.append_child(&radio)?;
-                    paragraph.append_child(&label)?;
-
-                    // rely on weak references and the JS GC to drop the closure
-                   closure.forget();
-                }
-
-                Ok(())
-            }
             match kind {
                 ParameterKind::Bool => {
-                    create_radio_buttons(&document, &paragraph, name, &param_map, &port, &["False", "True"])?;
+                    let checkbox = document.create_element("input")?.dyn_into::<HtmlInputElement>()?;
+                    checkbox.set_type("checkbox");
+                    checkbox.set_checked(default_value == 1f32);
+                    let parameter = param_map.get(name).unwrap();
+                    add_parameter_input_change_event_handler(&checkbox, parameter, &port, |input| if input.checked() { 1f32 } else { 0f32 })?;
+                    paragraph.append_child(&checkbox)?;
                 },
                 ParameterKind::Enum(variants) => {
-                    create_radio_buttons(&document, &paragraph, name, &param_map, &port, &variants)?;
+                    for (value, option) in variants.iter().enumerate() {
+                        let radio = document.create_element("input")?.dyn_into::<HtmlInputElement>()?;
+                        radio.set_type("radio");
+                        radio.set_name(name);
+                        radio.set_id(option);
+                        radio.set_value(&format!("{value}"));
+                        radio.set_checked(value as f32 == default_value);
+                        let label = document.create_element("label")?.dyn_into::<HtmlLabelElement>()?;
+                        label.set_html_for(option);
+                        label.set_inner_html(option);
+                        let parameter = param_map.get(name).unwrap();
+                        add_parameter_input_change_event_handler(&radio, parameter, &port, |input| input.value().parse().unwrap())?;
+                        paragraph.append_child(&radio)?;
+                        paragraph.append_child(&label)?;
+                    }
                 },
                 ParameterKind::F32 | ParameterKind::I32 | ParameterKind::U32 => {
-                    // slider
                     let slider = document.create_element("input")?.dyn_into::<HtmlInputElement>()?;
                     slider.set_type("range");
                     slider.set_min(&min_value.to_string());
@@ -93,18 +100,8 @@ where
                     };
                     slider.set_step(step);
                     let parameter = param_map.get(name).unwrap();
-                    let port = port.clone();
-                    let closure = Closure::<dyn Fn(_)>::new(move |event: web_sys::Event| {
-                        let value = event.target().unwrap().dyn_into::<HtmlInputElement>().unwrap().value_as_number();
-                        parameter.set_value(value as f32);
-                        let msg = Object::new();
-                        let _ = Reflect::set(&msg, &"type".into(), &"indicateParamsChanged".into());
-                        let _ = port.post_message(&msg);
-                    });
-                    slider.add_event_listener_with_callback("change", closure.as_ref().unchecked_ref())?;
+                    add_parameter_input_change_event_handler(&slider, parameter, &port, |input| input.value_as_number() as f32)?;
                     paragraph.append_child(&slider)?;
-                    // rely on weak references and the JS GC to drop the closure
-                   closure.forget();
                 }
             }
             control.append_child(&paragraph)?;
