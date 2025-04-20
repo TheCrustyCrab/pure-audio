@@ -187,6 +187,8 @@ where
     const PARAM_DESCRIPTORS: [(ParameterDescriptor, AutomationRate); NUM_PARAMS] = F::PARAM_DESCRIPTORS;
 
     fn into_wasm_processor_implementation(self, sample_rate: f32) -> impl WasmProcessorImplementation {
-        WasmProcessorWrapper::new(self.into_processor(sample_rate), &F::PARAM_DESCRIPTORS)
+        let mut processor = self.into_processor();
+        processor.activate(sample_rate, PROCESSOR_BLOCK_LENGTH, PROCESSOR_BLOCK_LENGTH);
+        WasmProcessorWrapper::new(processor, &F::PARAM_DESCRIPTORS)
     }
 }

@@ -84,8 +84,13 @@ pub fn impl_processor(ts: TokenStream) -> TokenStream {
             #(
                 #generic_idents: 'static + FromParameterValues,
             )*
-            S: 'static + Default,
+            S: 'static + State,
             {
+                #[inline]
+                fn activate(&mut self, sample_rate: f32, min_frame_count: usize, max_frame_count: usize) {
+                    self.state.activate(sample_rate, min_frame_count, max_frame_count);
+                }
+
                 #[inline]
                 fn process<'a>(
                     &'a mut self,
@@ -98,13 +103,8 @@ pub fn impl_processor(ts: TokenStream) -> TokenStream {
                     #(
                         let #generic_idents = #generic_idents::from_parameter_values(parameter_single_values, parameter_per_sample_values, #indices);
                     )*
-                    let data = A::from_raw_audio_data(inputs, outputs, events, self.sample_rate, &mut self.state);
+                    let data = A::from_raw_audio_data(inputs, outputs, events, &mut self.state);
                     (self.f)(data, #(#generic_idents),*);
-                }
-
-                #[inline]
-                fn set_sample_rate(&mut self, sample_rate: f32) {
-                    self.sample_rate = sample_rate;
                 }
             }
 
@@ -123,7 +123,7 @@ pub fn impl_processor(ts: TokenStream) -> TokenStream {
             #(
                 #generic_idents: 'static + FromParameterValues,
             )*
-            S: 'static + Default,
+            S: 'static + State,
             {
                 type Out = ProcessorWrapper<F, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, #num_params, A, (#(#generic_idents,)*), S>;
                 const PARAM_DESCRIPTORS: [(ParameterDescriptor, AutomationRate); #num_params] = [
@@ -133,10 +133,9 @@ pub fn impl_processor(ts: TokenStream) -> TokenStream {
                 ];
 
                 fn into_processor(
-                    self,
-                    sample_rate: f32,
+                    self
                 ) -> Self::Out {
-                    ProcessorWrapper::new(self, sample_rate, S::default())
+                    ProcessorWrapper::new(self, S::default())
                 }
 
                 fn parameter_f64_to_value(index: usize, d: f64) -> u32 {

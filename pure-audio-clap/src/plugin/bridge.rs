@@ -20,12 +20,12 @@ where
     let _ = Box::from_raw(plugin.plugin_data as *mut PluginWrapper<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>);
 }
 
-pub(crate) unsafe extern "C" fn activate<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S, P>(plugin: *const clap_plugin, sample_rate: f64, _min_frame_count: u32, max_frame_count: u32) -> bool
+pub(crate) unsafe extern "C" fn activate<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S, P>(plugin: *const clap_plugin, sample_rate: f64, min_frame_count: u32, max_frame_count: u32) -> bool
 where 
     P: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>
 {
     let this = get_plugin_data::<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>(plugin);
-    this.activate(sample_rate, max_frame_count as usize);
+    this.activate(sample_rate, min_frame_count as usize, max_frame_count as usize);
     true
 }
 

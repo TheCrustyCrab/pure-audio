@@ -34,13 +34,13 @@ where
             parameters: initial_parameters,
             parameters_per_sample: None,
             last_process_changed_parameters: [false; NUM_PARAMS],
-            processor: processor.into_processor(0.0),
+            processor: processor.into_processor(),
             marker: PhantomData
         }
     }
 
-    pub fn activate(&mut self, sample_rate: f64, max_frame_count: usize) {
-        self.processor.set_sample_rate(sample_rate as f32);
+    pub fn activate(&mut self, sample_rate: f64, min_frame_count: usize, max_frame_count: usize) {
+        self.processor.activate(sample_rate as f32, min_frame_count, max_frame_count);
 
         match &mut self.parameters_per_sample {
             Some(parameters) => {

@@ -1,5 +1,5 @@
 use std::{collections::HashMap, f32::consts::TAU};
-use pure_audio::MonoSynthData;
+use pure_audio::{MonoSynthData, State};
 
 struct Voice {
     phase: f32,
@@ -34,21 +34,27 @@ impl Voice {
 
 #[derive(Default)]
 pub struct OscillatorState {
+    sample_rate: f32,
     voices: HashMap<u8, Voice>
+}
+
+impl State for OscillatorState {
+    fn activate(&mut self, sample_rate: f32, _min_frame_count: usize, _max_frame_count: usize) {
+        self.sample_rate = sample_rate;
+    }
 }
 
 pub fn process(
     MonoSynthData {
         output,
         events,
-        sample_rate,
-        state: OscillatorState { voices }
+        state: OscillatorState { sample_rate, voices }
     }: MonoSynthData<OscillatorState>
 ) {
     for event in events {
         match event {
             &pure_audio::Event::NoteOn { key, velocity } => {
-                voices.insert(key, Voice::new(key, velocity, sample_rate));
+                voices.insert(key, Voice::new(key, velocity, *sample_rate));
             },
             pure_audio::Event::NoteOff { key, .. } => {
                 voices.remove(key);
