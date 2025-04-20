@@ -9,6 +9,6 @@ extern "C" {
     #[wasm_bindgen(method, getter)]
     pub(crate) fn url(this: &ImportMeta) -> JsString;
 
-    #[wasm_bindgen(thread_local, js_namespace = import, js_name = meta)]
+    #[wasm_bindgen(thread_local_v2, js_namespace = import, js_name = meta)]
     pub(crate) static IMPORT_META: ImportMeta;
 }
