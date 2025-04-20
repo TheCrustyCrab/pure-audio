@@ -268,8 +268,8 @@ where
     "#
     );
 
-    let mut options = BlobPropertyBag::new();
-    options.type_("text/javascript");
+    let options = BlobPropertyBag::new();
+    options.set_type("text/javascript");
     let blob =
         Blob::new_with_str_sequence_and_options(&Array::of1(&JsValue::from_str(&code)), &options)?;
     let url = Url::create_object_url_with_blob(&blob)?;
@@ -283,17 +283,17 @@ where
 
 fn create_node(name: &str, num_inputs: usize, num_outputs: usize, num_channels: usize, ctx: &AudioContext) -> Result<PureAudioWorkletNode, JsValue> {
     log_1(&"Creating node".into());
-    let mut options = AudioWorkletNodeOptions::new();
-    options.number_of_inputs(num_inputs as u32);
-    options.number_of_outputs(num_outputs as u32);
-    options.channel_count(num_channels as u32);
-    options.channel_count_mode(ChannelCountMode::Explicit);
+    let options = AudioWorkletNodeOptions::new();
+    options.set_number_of_inputs(num_inputs as u32);
+    options.set_number_of_outputs(num_outputs as u32);
+    options.set_channel_count(num_channels as u32);
+    options.set_channel_count_mode(ChannelCountMode::Explicit);
     let output_channel_counts = Array::new_with_length(num_outputs as u32);
     for i in 0..num_outputs as u32 {
         output_channel_counts.set(i, num_channels.into());
     }
-    options.output_channel_count(&output_channel_counts);
-    options.processor_options(Some(
+    options.set_output_channel_count(&output_channel_counts);
+    options.set_processor_options(Some(
         &Array::of2(&wasm_bindgen::module(), &ctx.sample_rate().into())
     ));
     PureAudioWorkletNode::new_with_options(&ctx, name, &options)
