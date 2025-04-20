@@ -1,5 +1,9 @@
 pub enum Event {
-    NoteOn { key: u8, velocity: u8 },
-    NoteOff { key: u8, velocity: u8 },
+    NoteOn { port_index: i32, channel: i32, key: u8, note_id: i32, velocity: u8 },
+    NoteOff { port_index: i32, channel: i32, key: u8, note_id: i32, velocity: u8 },
     ParamsChanged
+}
+
+pub enum OutEvent {
+    NoteEnd { port_index: i32, channel: i32, key: u8, note_id: i32, velocity: u8 }
 }

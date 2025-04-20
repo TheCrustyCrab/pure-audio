@@ -98,12 +98,13 @@ pub fn impl_processor(ts: TokenStream) -> TokenStream {
                     outputs: [[&'a mut [f32]; NUM_CHANNELS]; NUM_OUTPUTS],
                     parameter_single_values: &'a [u32; #num_params],
                     parameter_per_sample_values: &'a [Option<&'a [u32]>; #num_params],
-                    events: &'a [Event]
+                    events: &'a [Event],
+                    out_events: &'a mut Vec<OutEvent>,
                 ) {
                     #(
                         let #generic_idents = #generic_idents::from_parameter_values(parameter_single_values, parameter_per_sample_values, #indices);
                     )*
-                    let data = A::from_raw_audio_data(inputs, outputs, events, &mut self.state);
+                    let data = A::from_raw_audio_data(inputs, outputs, events, out_events, &mut self.state);
                     (self.f)(data, #(#generic_idents),*);
                 }
             }

@@ -3,13 +3,14 @@ mod extensions;
 
 use std::{array, marker::PhantomData, sync::atomic::{AtomicU32, Ordering}};
 use clap_sys::{events::{clap_event_note, clap_event_param_value, clap_input_events, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_NOTE_OFF, CLAP_EVENT_NOTE_ON, CLAP_EVENT_PARAM_VALUE}, plugin::clap_plugin};
-use pure_audio::{AutomationRate, Event, IntoProcessor, Processor};
+use pure_audio::{AutomationRate, Event, IntoProcessor, OutEvent, Processor};
 
 pub struct PluginWrapper<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S>
 where
     P: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>
 {
     events: Vec<Event>,
+    out_events: Vec<OutEvent>,
     // current parameter values
     // main thread (params_get_value, read) and audio thread (process, read/write) can access them concurrently so synchronization is needed
     parameters: [AtomicU32; NUM_PARAMS],
@@ -31,6 +32,7 @@ where
         });
         Self {
             events: vec![],
+            out_events: vec![],
             parameters: initial_parameters,
             parameters_per_sample: None,
             last_process_changed_parameters: [false; NUM_PARAMS],
@@ -87,12 +89,24 @@ where
             }
             if event.type_ == CLAP_EVENT_NOTE_ON {
                 let note_event = &*(event_ptr as *const clap_event_note);
-                // todo: correct types + note_id, channel, time
-                self.events.push(Event::NoteOn { key: note_event.key as u8, velocity: (note_event.velocity * 127.0) as u8 });// todo: use normalized velocity everywhere
+                // todo: correct types
+                self.events.push(Event::NoteOn { 
+                    port_index: note_event.port_index as i32,
+                    channel: note_event.channel as i32,
+                    key: note_event.key as u8,
+                    note_id: note_event.note_id as i32,
+                    velocity: (note_event.velocity * 127.0) as u8 }
+                );// todo: use normalized velocity everywhere
             } else if event.type_ == CLAP_EVENT_NOTE_OFF {
                 let note_event = &*(event_ptr as *const clap_event_note);
-                // todo: correct types + note_id, channel, time
-                self.events.push(Event::NoteOff { key: note_event.key as u8, velocity: (note_event.velocity * 127.0) as u8 });// todo: use normalized velocity everywhere
+                // todo: correct types
+                self.events.push(Event::NoteOff { 
+                    port_index: note_event.port_index as i32,
+                    channel: note_event.channel as i32,
+                    key: note_event.key as u8, 
+                    note_id: note_event.note_id as i32,
+                    velocity: (note_event.velocity * 127.0) as u8
+                });// todo: use normalized velocity everywhere
             } else if event.type_ == CLAP_EVENT_PARAM_VALUE {
                 let param_value_event = &*(event_ptr as *const clap_event_param_value);
                 let param_index = param_value_event.param_id as usize;

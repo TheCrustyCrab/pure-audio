@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use pure_audio::{AutomationRate, Event, IntoProcessor, ParameterDescriptor, Processor};
+use pure_audio::{AutomationRate, Event, IntoProcessor, OutEvent, ParameterDescriptor, Processor};
 use wasm_bindgen::prelude::*;
 use crate::PROCESSOR_BLOCK_LENGTH;
 
@@ -65,6 +65,7 @@ pub trait WasmProcessorImplementation: 'static {
 struct WasmProcessorWrapper<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params> {
     processor: P,
     events: Vec<Event>,
+    out_events: Vec<OutEvent>,
     inputs: [[[f32; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_INPUTS],
     outputs: [[[f32; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_OUTPUTS],
     parameters: [u32; NUM_PARAMS],
@@ -78,6 +79,7 @@ impl<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: u
         Self {
             processor,
             events: vec![],
+            out_events: vec![],
             inputs: [[[0.0; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_INPUTS],
             outputs: [[[0.0; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_OUTPUTS],
             parameters: [0; NUM_PARAMS],
@@ -135,6 +137,7 @@ where
     }
 
     fn process(&mut self) {
+        self.out_events.clear();
         // clear outputs
         self.outputs = [[[0.0; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_OUTPUTS];
 
@@ -161,16 +164,18 @@ where
                     );
         
         let parameters_per_sample = self.parameters_per_sample.each_ref().map(|p| p.as_ref().map(|p| p.as_slice()));
-        self.processor.process(inputs, outputs, &self.parameters, &parameters_per_sample, &self.events);
+        self.processor.process(inputs, outputs, &self.parameters, &parameters_per_sample, &self.events, &mut self.out_events);
         self.events.clear();
     }
 
     fn note_on(&mut self, key: u8, velocity: u8) {
-        self.events.push(Event::NoteOn { key, velocity });
+        // currently not using port_index, channel and note_id from wasm
+        self.events.push(Event::NoteOn { key, velocity, port_index: 0, channel: 0, note_id: 0 });
     }
 
     fn note_off(&mut self, key: u8, velocity: u8) {
-        self.events.push(Event::NoteOff { key, velocity });
+        // currently not using port_id, channel and note_id from wasm
+        self.events.push(Event::NoteOff { key, velocity, port_index: 0, channel: 0, note_id: 0 });
     }
 
     fn indicate_params_changed(&mut self) {
