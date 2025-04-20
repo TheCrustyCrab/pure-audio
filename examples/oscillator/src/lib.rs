@@ -48,12 +48,13 @@ pub fn process(
     MonoSynthData {
         output,
         events,
-        state: OscillatorState { sample_rate, voices }
+        state: OscillatorState { sample_rate, voices },
+        ..
     }: MonoSynthData<OscillatorState>
 ) {
     for event in events {
         match event {
-            &pure_audio::Event::NoteOn { key, velocity } => {
+            &pure_audio::Event::NoteOn { key, velocity, .. } => {
                 voices.insert(key, Voice::new(key, velocity, *sample_rate));
             },
             pure_audio::Event::NoteOff { key, .. } => {
