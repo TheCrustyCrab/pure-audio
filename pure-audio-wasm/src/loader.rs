@@ -93,12 +93,12 @@ where
                     slider.set_type("range");
                     slider.set_min(&min_value.to_string());
                     slider.set_max(&max_value.to_string());
-                    slider.set_value(&default_value.to_string());
                     let step = match kind {
                         ParameterKind::Bool | ParameterKind::Enum(_) | ParameterKind::I32 | ParameterKind::U32 => "1",
                         ParameterKind::F32 => "0.01"
                     };
                     slider.set_step(step);
+                    slider.set_value(&default_value.to_string());
                     let parameter = param_map.get(name).unwrap();
                     add_parameter_input_change_event_handler(&slider, parameter, &port, |input| input.value_as_number() as f32)?;
                     paragraph.append_child(&slider)?;
