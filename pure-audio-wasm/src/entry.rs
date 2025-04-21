@@ -2,6 +2,7 @@
 macro_rules! pure_audio_wasm_entry {
     ($name:ident, $process:expr) => {
         const _: () = {
+            use pure_audio_wasm::js_sys;
             use pure_audio_wasm::paste;
             use pure_audio_wasm::paste::paste;
             use pure_audio_wasm::wasm_bindgen;
@@ -10,8 +11,8 @@ macro_rules! pure_audio_wasm_entry {
 
             paste! { 
                 #[wasm_bindgen(js_name = [<create_ $name:lower _wasm_processor>])]
-                pub fn create_wasm_processor(sample_rate: f32) -> pure_audio_wasm::WasmProcessor {
-                    pure_audio_wasm::create_wasm_processor($process, sample_rate)
+                pub fn create_wasm_processor(sample_rate: f32, output_event_callback: js_sys::Function) -> pure_audio_wasm::WasmProcessor {
+                    pure_audio_wasm::create_wasm_processor($process, sample_rate, output_event_callback)
                 }
                 
                 #[wasm_bindgen]

@@ -1,7 +1,7 @@
 use std::{array, ffi::{c_void, CStr}, slice, sync::atomic::Ordering};
-use clap_sys::{events::{clap_event_header, clap_event_note, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_NOTE_END}, ext::{audio_ports::{clap_plugin_audio_ports, CLAP_EXT_AUDIO_PORTS}, note_ports::{clap_plugin_note_ports, CLAP_EXT_NOTE_PORTS}, params::{clap_plugin_params, CLAP_EXT_PARAMS}}, plugin::clap_plugin, process::{clap_process, clap_process_status, CLAP_PROCESS_CONTINUE}};
-use pure_audio::{IntoProcessor, OutEvent, Processor};
-use super::{get_plugin_data, extensions::{audio_ports::AudioPortsExtension, note_ports::NotePortsExtension, params::ParamsExtension}, PluginWrapper};
+use clap_sys::{ext::{audio_ports::{clap_plugin_audio_ports, CLAP_EXT_AUDIO_PORTS}, note_ports::{clap_plugin_note_ports, CLAP_EXT_NOTE_PORTS}, params::{clap_plugin_params, CLAP_EXT_PARAMS}}, plugin::clap_plugin, process::{clap_process, clap_process_status, CLAP_PROCESS_CONTINUE}};
+use pure_audio::{IntoProcessor, OutEvents, Processor};
+use super::{event::ClapOutEventDispatcher, extensions::{audio_ports::AudioPortsExtension, note_ports::NotePortsExtension, params::ParamsExtension}, get_plugin_data, PluginWrapper};
 
 // bridge between unsafe CLAP API and inner Plugin
 pub(crate) unsafe extern "C" fn init<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params, S, P>(_plugin: *const clap_plugin) -> bool
@@ -99,33 +99,11 @@ where
     });
 
     let parameters_per_sample = this.parameters_per_sample.as_ref().unwrap().each_ref().map(|p| p.as_ref().map(|p| p.as_slice()));
-    this.processor.process(inputs, outputs, &parameters, &parameters_per_sample, &this.events, &mut this.out_events);
-
-    let out_events = &*process.out_events;
-    for out_event in this.out_events.iter() {
-        let clap_out_event = match out_event {
-            OutEvent::NoteEnd { port_index, channel, key, note_id, velocity } => {
-                clap_event_note {
-                    header: clap_event_header {
-                        flags: 0,
-                        size: std::mem::size_of::<clap_event_note>() as u32,
-                        space_id: CLAP_CORE_EVENT_SPACE_ID,
-                        time: process.frames_count - 1,
-                        type_: CLAP_EVENT_NOTE_END
-                    },
-                    channel: *channel as i16,
-                    key: *key as i16,
-                    note_id: *note_id,
-                    port_index: *port_index as i16,
-                    velocity: *velocity as f64
-                }
-            },
-        };
-        out_events.try_push.unwrap()(process.out_events, &clap_out_event.header);
-    }
+    let dispatcher = ClapOutEventDispatcher::new(process.out_events, process.frames_count);
+    let out_events = OutEvents::new(&dispatcher);
+    this.processor.process(inputs, outputs, &parameters, &parameters_per_sample, &this.events, out_events);
 
     this.events.clear();
-    this.out_events.clear();
 
     CLAP_PROCESS_CONTINUE
 }

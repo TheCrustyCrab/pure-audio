@@ -225,9 +225,6 @@ where
                 // debugger;
                 super();
                 this.port.onmessage = msg => {{
-                    console.log("Audio thread received message: ");
-                    console.log(msg);
-                    this.port.postMessage("hello from audio thread!");
                     if (msg.data.type === "noteOn") {{
                         this.processor.note_on(msg.data.data.key, msg.data.data.velocity);
                     }} else if (msg.data.type === "noteOff") {{
@@ -238,7 +235,13 @@ where
                 }};
                 const [module, sampleRate] = options.processorOptions;
                 const {{ memory }} = initSync({{ module }});
-                this.processor = {create_wasm_processor_function}(sampleRate);
+                const onOutputEvent = event => this.port.postMessage({{
+                    type: "outputEvent",
+                    data: {{
+                        event
+                    }}
+                }});
+                this.processor = {create_wasm_processor_function}(sampleRate, onOutputEvent);
 
                 this.inputsPtr = this.processor.get_inputs_ptr() / 4; // NUM_INPUTS * NUM_CHANNELS * [f32; 128]
                 this.outputsPtr = this.processor.get_outputs_ptr() / 4; // NUM_OUTPUTS * NUM_CHANNELS * [f32; 128]

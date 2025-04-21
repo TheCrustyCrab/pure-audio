@@ -1,4 +1,4 @@
-use crate::{event::Event, OutEvent};
+use crate::{event::Event, OutEvents};
 
 pub trait FromRawAudioData<
     const NUM_INPUTS: usize,
@@ -14,7 +14,7 @@ pub trait FromRawAudioData<
         inputs: [[&'a [f32]; NUM_CHANNELS]; NUM_INPUTS],
         outputs: [[&'a mut [f32]; NUM_CHANNELS]; NUM_OUTPUTS],
         events: &'a [Event],
-        out_events: &'a mut Vec<OutEvent>,
+        out_events: OutEvents<'a>,
         state: &'a mut S,
     ) -> Self::Out<'a>;
 }
@@ -29,7 +29,7 @@ pub struct AudioData<
     pub inputs: [[&'a [f32]; NUM_CHANNELS]; NUM_INPUTS],
     pub outputs: [[&'a mut [f32]; NUM_CHANNELS]; NUM_OUTPUTS],
     pub events: &'a [Event],
-    pub out_events: &'a mut Vec<OutEvent>,
+    pub out_events: OutEvents<'a>,
     pub state: &'a mut S,
 }
 
@@ -46,7 +46,7 @@ impl<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usiz
         inputs: [[&'a [f32]; NUM_CHANNELS]; NUM_INPUTS],
         outputs: [[&'a mut [f32]; NUM_CHANNELS]; NUM_OUTPUTS],
         events: &'a [Event],
-        out_events: &'a mut Vec<OutEvent>,
+        out_events: OutEvents<'a>,
         state: &'a mut S,
     ) -> Self::Out<'a> {
         AudioData {
@@ -63,7 +63,7 @@ pub struct MonoEffectData<'a, S = ()> {
     pub input: &'a [f32],
     pub output: &'a mut [f32],
     pub events: &'a [Event],
-    pub out_events: &'a mut Vec<OutEvent>,
+    pub out_events: OutEvents<'a>,
     pub state: &'a mut S,
 }
 
@@ -77,7 +77,7 @@ impl<S> FromRawAudioData<1, 1, 1, S> for MonoEffectData<'_, S> {
         [[input]]: [[&'a [f32]; 1]; 1],
         [[output]]: [[&'a mut [f32]; 1]; 1],
         events: &'a [Event],
-        out_events: &'a mut Vec<OutEvent>,
+        out_events: OutEvents<'a>,
         state: &'a mut S,
     ) -> Self::Out<'a> {
         MonoEffectData {
@@ -94,7 +94,7 @@ pub struct StereoEffectData<'a, S = ()> {
     pub inputs: [&'a [f32]; 2],
     pub outputs: [&'a mut [f32]; 2],
     pub events: &'a [Event],
-    pub out_events: &'a Vec<OutEvent>,
+    pub out_events: OutEvents<'a>,
     pub state: &'a mut S,
 }
 
@@ -108,7 +108,7 @@ impl<S> FromRawAudioData<1, 1, 2, S> for StereoEffectData<'_, S> {
         [inputs]: [[&'a [f32]; 2]; 1],
         [outputs]: [[&'a mut [f32]; 2]; 1],
         events: &'a [Event],
-        out_events: &'a mut Vec<OutEvent>,
+        out_events: OutEvents<'a>,
         state: &'a mut S,
     ) -> Self::Out<'a> {
         StereoEffectData {
@@ -124,7 +124,7 @@ impl<S> FromRawAudioData<1, 1, 2, S> for StereoEffectData<'_, S> {
 pub struct MonoSynthData<'a, S = ()> {
     pub output: &'a mut [f32],
     pub events: &'a [Event],
-    pub out_events: &'a mut Vec<OutEvent>,
+    pub out_events: OutEvents<'a>,
     pub state: &'a mut S,
 }
 
@@ -138,7 +138,7 @@ impl<S> FromRawAudioData<0, 1, 1, S> for MonoSynthData<'_, S> {
         _input: [[&'a [f32]; 1]; 0],
         [[output]]: [[&'a mut [f32]; 1]; 1],
         events: &'a [Event],
-        out_events: &'a mut Vec<OutEvent>,
+        out_events: OutEvents<'a>,
         state: &'a mut S,
     ) -> Self::Out<'a> {
         MonoSynthData {
@@ -153,7 +153,7 @@ impl<S> FromRawAudioData<0, 1, 1, S> for MonoSynthData<'_, S> {
 pub struct StereoSynthData<'a, S = ()> {
     pub outputs: [&'a mut [f32]; 2],
     pub events: &'a [Event],
-    pub out_events: &'a mut Vec<OutEvent>,
+    pub out_events: OutEvents<'a>,
     pub state: &'a mut S,
 }
 
@@ -167,7 +167,7 @@ impl<S> FromRawAudioData<0, 1, 2, S> for StereoSynthData<'_, S> {
         _inputs: [[&'a [f32]; 2]; 0],
         [outputs]: [[&'a mut [f32]; 2]; 1],
         events: &'a [Event],
-        out_events: &'a mut Vec<OutEvent>,
+        out_events: OutEvents<'a>,
         state: &'a mut S,
     ) -> Self::Out<'a> {
         StereoSynthData {

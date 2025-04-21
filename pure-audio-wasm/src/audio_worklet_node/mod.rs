@@ -16,3 +16,21 @@ extern "C" {
         options: &AudioWorkletNodeOptions,
     ) -> Result<PureAudioWorkletNode, JsValue>;
 }
+
+// implementing note event types in javascript due to the limited available API in the AudioWorkletGlobalScope (no TextDecoder so no serialization)
+#[wasm_bindgen(typescript_custom_section)]
+const TS_NOTE_END_EVENT: &'static str = include_str!("js/noteEndEvent.d.ts");
+
+#[wasm_bindgen(module = "/src/audio_worklet_node/js/noteEndEvent.js")]
+extern "C" {
+    #[wasm_bindgen (extends = EventTarget , extends = :: js_sys :: Object , js_name = NoteEndEvent , typescript_type = "NoteEndEvent")]
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub type NoteEndEvent;
+    #[wasm_bindgen(constructor, js_class = "NoteEndEvent")]
+    pub fn new(
+        port_index: i32,
+        channel: i32,
+        key: u8,
+        note_id: i32,
+    ) -> NoteEndEvent;
+}

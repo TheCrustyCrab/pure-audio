@@ -1,16 +1,16 @@
 pub mod bridge;
+mod event;
 mod extensions;
 
 use std::{array, marker::PhantomData, sync::atomic::{AtomicU32, Ordering}};
 use clap_sys::{events::{clap_event_note, clap_event_param_value, clap_input_events, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_NOTE_OFF, CLAP_EVENT_NOTE_ON, CLAP_EVENT_PARAM_VALUE}, plugin::clap_plugin};
-use pure_audio::{AutomationRate, Event, IntoProcessor, OutEvent, Processor};
+use pure_audio::{AutomationRate, Event, IntoProcessor, Processor};
 
 pub struct PluginWrapper<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S>
 where
     P: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>
 {
     events: Vec<Event>,
-    out_events: Vec<OutEvent>,
     // current parameter values
     // main thread (params_get_value, read) and audio thread (process, read/write) can access them concurrently so synchronization is needed
     parameters: [AtomicU32; NUM_PARAMS],
@@ -32,7 +32,6 @@ where
         });
         Self {
             events: vec![],
-            out_events: vec![],
             parameters: initial_parameters,
             parameters_per_sample: None,
             last_process_changed_parameters: [false; NUM_PARAMS],

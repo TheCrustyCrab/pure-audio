@@ -99,7 +99,7 @@ pub fn impl_processor(ts: TokenStream) -> TokenStream {
                     parameter_single_values: &'a [u32; #num_params],
                     parameter_per_sample_values: &'a [Option<&'a [u32]>; #num_params],
                     events: &'a [Event],
-                    out_events: &'a mut Vec<OutEvent>,
+                    out_events: OutEvents<'a>
                 ) {
                     #(
                         let #generic_idents = #generic_idents::from_parameter_values(parameter_single_values, parameter_per_sample_values, #indices);

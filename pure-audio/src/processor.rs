@@ -1,5 +1,5 @@
 use crate::{
-    event::Event, AutomationRate, FromParameterValues, FromRawAudioData, OutEvent, ParameterDescriptor
+    event::Event, AutomationRate, FromParameterValues, FromRawAudioData, OutEvents, ParameterDescriptor
 };
 use pure_audio_proc_macro::{for_params, impl_processor};
 use std::{fmt::Write, marker::PhantomData};
@@ -29,7 +29,7 @@ pub trait Processor<
         parameter_single_values: &'a [u32; NUM_PARAMS],
         parameter_per_sample_values: &'a [Option<&'a [u32]>; NUM_PARAMS],
         events: &'a [Event],
-        out_events: &'a mut Vec<OutEvent>,
+        out_events: OutEvents<'a>
     );
 }
 

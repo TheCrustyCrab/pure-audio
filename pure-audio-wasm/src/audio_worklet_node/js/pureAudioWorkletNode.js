@@ -6,6 +6,18 @@ if (root.AudioWorkletNode === undefined) {
     PureAudioWorkletNode = class Dummy { };
 } else {
     PureAudioWorkletNode = class PureAudioWorkletNode extends AudioWorkletNode {
+        constructor(context, name, options) {
+            super(context, name, options);
+            this.outputEventListeners = [];
+
+            this.port.onmessage = msg => {
+                if (msg.data.type === "outputEvent") {
+                    this.outputEventListeners.forEach(callback => {
+                        callback(msg.data.data);
+                    });
+                }
+            }
+        }
         noteOn(key, velocity) {
             this.port.postMessage({
                 type: "noteOn",
@@ -24,6 +36,10 @@ if (root.AudioWorkletNode === undefined) {
                     velocity
                 }
             });
+        }
+
+        addOutputEventListener(callback) {
+            this.outputEventListeners.push(callback);
         }
     };
 }

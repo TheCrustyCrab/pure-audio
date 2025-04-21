@@ -1,11 +1,13 @@
 mod audio_worklet_node;
 mod entry;
+mod event;
 mod es_module;
 mod loader;
 mod processor;
 
 // re-export
 pub use audio_worklet_node::*;
+pub use js_sys;
 pub use loader::*;
 pub use paste;
 pub use processor::*;
@@ -29,6 +31,7 @@ pub fn create_wasm_processor<
 >(
     process: impl IntoWasmProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>,
     sample_rate: f32,
+    output_event_callback: js_sys::Function
 ) -> WasmProcessor {
-    process.into_wasm_processor(sample_rate)
+    process.into_wasm_processor(sample_rate, output_event_callback)
 }
