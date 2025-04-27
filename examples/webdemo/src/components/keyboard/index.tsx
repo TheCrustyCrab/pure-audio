@@ -1,0 +1,157 @@
+import { Fragment, useEffect, useState } from 'react';
+import { Octave } from './octave';
+
+enum MidiStatus {
+    NoteOff = 0b1000,
+    NoteOn = 0b1001
+}
+
+interface KeyboardProps {
+    minOctave: number,
+    octaveCount: number,
+    onNoteOn: (key: number, velocity: number) => void,
+    onNoteOff: (key: number, velocity: number) => void
+}
+
+enum PointerChordMode {
+    Note = "Note",
+    Major = "Major",
+    Minor = "Minor",
+    Sus2 = "Sus2",
+    Sus4 = "Sus4"
+}
+
+const chordKeyOffsets: { [key in PointerChordMode]: Array<number> } = {
+    [PointerChordMode.Note]: [0],
+    [PointerChordMode.Major]: [0, 4, 7],
+    [PointerChordMode.Minor]: [0, 3, 7],
+    [PointerChordMode.Sus2]: [0, 2, 7],
+    [PointerChordMode.Sus4]: [0, 5, 7]
+}
+
+function Keyboard({ minOctave, octaveCount, onNoteOn, onNoteOff }: KeyboardProps) {
+    const [midiAccess, setMidiAccess] = useState<MIDIAccess>();
+    const [midiInputs, setMidiInputs] = useState<MIDIInput[]>([]);
+    const [selectedMidiInputIndex, setSelectedMidiInputIndex] = useState<number>();
+    const [pointerChordMode, setPointerChordMode] = useState<PointerChordMode>(PointerChordMode.Note);
+    const [activeNotes, setActiveNotes] = useState<number[]>([]);
+
+    useEffect(() => {
+        // initial activation
+        const initMidi = async () => {
+            const midiAccess = await navigator.requestMIDIAccess();
+            setMidiAccess(midiAccess);
+            midiAccess.addEventListener("statechange", () => updateMidiInputs);
+            updateMidiInputs.call(midiAccess);
+        };
+
+        initMidi();
+        
+        return () => {
+            midiAccess?.removeEventListener("statechange", updateMidiInputs);
+        };
+    }, []);
+
+    useEffect(() => {
+        document.body.addEventListener("pointerup", handlePointerUpOrCancel);
+        document.body.addEventListener("pointercancel", handlePointerUpOrCancel);
+        if (selectedMidiInputIndex !== undefined) {
+            midiInputs[selectedMidiInputIndex].onmidimessage = handleMidiMessage;
+        }
+
+        return () => {
+            document.body.removeEventListener("pointerup", handlePointerUpOrCancel);
+            document.body.removeEventListener("pointercancel", handlePointerUpOrCancel);
+        };
+    }, [minOctave, octaveCount, activeNotes, onNoteOn, onNoteOff]);
+
+    function updateMidiInputs(this: MIDIAccess)  {
+        const inputs = [...this.inputs.values()];
+        if (selectedMidiInputIndex === undefined && inputs.length > 0) {
+            selectMidiInput(inputs[0]);
+            setSelectedMidiInputIndex(0);
+        }
+        setMidiInputs(inputs);
+    };
+
+    const handleSelectMidiInput = (index: number) => {
+        console.log(index);
+        const selectedInput = midiInputs[index];
+        selectMidiInput(selectedInput);
+        setSelectedMidiInputIndex(index);
+    };
+
+    const selectMidiInput = (input: MIDIInput) => {
+        input.onmidimessage = handleMidiMessage;
+    };
+    
+    const handleMidiMessage = (midiMessage: MIDIMessageEvent) => {
+        // console.log(midiMessage.data);
+        const data = [...midiMessage.data!.values()];
+        if (data.length === 3) {
+            const [status, data1, data2] = data;
+            if (status >> 4  === MidiStatus.NoteOff) {
+                const key = data1;
+                const velocity = data2;
+                setActiveNotes(current => current.filter(activeNote => activeNote !== key));
+                onNoteOff(key, velocity);
+                console.log(`Midi note off ${key} with velocity ${velocity}`);
+            } else if (status >> 4 === MidiStatus.NoteOn) {
+                const key = data1;
+                const velocity = data2;
+                setActiveNotes(current => [...current, key]);
+                onNoteOn(key, velocity);
+                console.log(`Midi note on ${key} with velocity ${velocity}`);
+            }
+        }        
+    }
+
+    const handleNoteOn = (key: number) => {
+        const keyOffsets = chordKeyOffsets[pointerChordMode];
+        const keys = keyOffsets.map(offset => key + offset);
+        setActiveNotes([...activeNotes, ...keys]);
+        keys.forEach(key => {
+            onNoteOn(key, 127);
+            console.log(`Note on: ${key}`);
+        });
+    };
+
+    const handlePointerUpOrCancel = (_evt: PointerEvent) => {
+        activeNotes.forEach(activeNote => {            
+            onNoteOff(activeNote, 127);
+            console.log(`Note off: ${activeNote}`);
+        });
+        setActiveNotes([]);
+    };
+
+    return (
+        <>
+        <div>
+            {
+                [PointerChordMode.Note, PointerChordMode.Major, PointerChordMode.Minor, PointerChordMode.Sus2, PointerChordMode.Sus4].map(mode =>
+                    <Fragment key={mode}>
+                        <input type="radio" id={mode} checked={pointerChordMode === mode} onChange={() => setPointerChordMode(mode)} />
+                        <label htmlFor={mode}>{mode}</label>
+                    </Fragment>
+                )
+            }
+        </div>
+        <div>
+            MIDI device:
+            <select onChange={(evt) => handleSelectMidiInput(parseInt(evt.target.value))}>
+                {
+                    midiInputs.map((input, i) => <option key={i} value={i}>{input.name}</option>)
+                }
+            </select>
+        </div>
+            {
+                [...Array(octaveCount)].map((_, i) => {
+                    const octaveIndex = i + minOctave;
+                    return <Octave key={octaveIndex} index={octaveIndex} onNoteOn={handleNoteOn} activeNotes={activeNotes} />;
+                })
+            }
+        </>
+    )
+}
+
+export default Keyboard;

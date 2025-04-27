@@ -1,0 +1,17 @@
+g.white {
+    fill: white;
+    stroke:black;
+    stroke-width: 1;
+}
+
+g.black {
+    fill: black;
+    stroke: grey;
+    stroke-width: 1;
+}
+
+g.on {
+    fill: greenyellow;
+    stroke: grey;
+    stroke-width: 1;
+}
