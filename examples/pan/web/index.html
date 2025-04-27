@@ -4,6 +4,7 @@
         <div>
             Click anywhere to start
         </div>
+        <div id="parameters"></div>
         <script type="module">
             import init, { createAudioNodeWithGeneratedParameterUI } from "./pan.js";
 
@@ -12,7 +13,7 @@
 
                 await init();
                 const ctx = new AudioContext();
-                const pan = await createAudioNodeWithGeneratedParameterUI(ctx);
+                const pan = await createAudioNodeWithGeneratedParameterUI(ctx, "parameters");
                 const tone = new OscillatorNode(ctx, {
                     frequency: 440
                 });

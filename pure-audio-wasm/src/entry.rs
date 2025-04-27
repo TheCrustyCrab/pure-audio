@@ -14,12 +14,12 @@ macro_rules! pure_audio_wasm_entry {
             
             #[wasm_bindgen(js_name = createAudioNode)]
             pub async fn create_node(ctx: &AudioContext) -> PureAudioWorkletNode {
-                pure_audio_wasm::register_and_create_node($name, $process, ctx, false).await.unwrap_throw()
+                pure_audio_wasm::register_and_create_node($name, $process, ctx, None).await.unwrap_throw()
             }
             
             #[wasm_bindgen(js_name = createAudioNodeWithGeneratedParameterUI)]
-            pub async fn create_node_with_generated_parameter_ui(ctx: &AudioContext) -> PureAudioWorkletNode {
-                pure_audio_wasm::register_and_create_node($name, $process, ctx, true).await.unwrap_throw()
+            pub async fn create_node_with_generated_parameter_ui(ctx: &AudioContext, #[wasm_bindgen(js_name = divId)] div_id: &str) -> PureAudioWorkletNode {
+                pure_audio_wasm::register_and_create_node($name, $process, ctx, Some(div_id)).await.unwrap_throw()
             }
         };
     };

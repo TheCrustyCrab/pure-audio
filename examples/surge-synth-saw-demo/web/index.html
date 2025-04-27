@@ -14,6 +14,7 @@
         <input id="note2Velocity" type="range" min="0" max="127" step="1" value="127" />
     </div>
     <button id="playButton">Play</button>
+    <div id="parameters"></div>
     <script type="module">
         import init, { createAudioNodeWithGeneratedParameterUI } from "./surge_synth_saw_demo.js";
 
@@ -22,7 +23,7 @@
 
             await init();
             const ctx = new AudioContext();
-            const synth = await createAudioNodeWithGeneratedParameterUI(ctx);
+            const synth = await createAudioNodeWithGeneratedParameterUI(ctx, "parameters");
             window.synth = synth;
             synth.addOutputEventListener(console.log);
             synth.connect(ctx.destination);
