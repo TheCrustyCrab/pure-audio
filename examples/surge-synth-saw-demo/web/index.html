@@ -1,0 +1,51 @@
+<html>
+
+<head></head>
+
+<body>
+    <div>
+        Note index:
+        <input id="note1Index" type="number" value="57">
+        <input id="note2Index" type="number" value="64">
+    </div>
+    <div>
+        Velocity:
+        <input id="note1Velocity" type="range" min="0" max="127" step="1" value="127" />
+        <input id="note2Velocity" type="range" min="0" max="127" step="1" value="127" />
+    </div>
+    <button id="playButton">Play</button>
+    <script type="module">
+        import init, { createAudioNodeWithGeneratedParameterUI } from "./surge_synth_saw_demo.js";
+
+        async function run() {
+            document.body.removeEventListener("click", run);
+
+            await init();
+            const ctx = new AudioContext();
+            const synth = await createAudioNodeWithGeneratedParameterUI(ctx);
+            window.synth = synth;
+            synth.addOutputEventListener(console.log);
+            synth.connect(ctx.destination);
+            document.getElementById("playButton").addEventListener("pointerdown", () => {
+                const index1 = parseInt(document.getElementById("note1Index").value);
+                const velocity1 = parseInt(document.getElementById("note1Velocity").value)
+                const index2 = parseInt(document.getElementById("note2Index").value);
+                const velocity2 = parseInt(document.getElementById("note2Velocity").value)
+                synth.noteOn(index1, velocity1);
+                synth.noteOn(index2, velocity2);
+            });
+            document.getElementById("playButton").addEventListener("pointerup", () => {
+                const index1 = parseInt(document.getElementById("note1Index").value);
+                const velocity1 = parseInt(document.getElementById("note1Velocity").value)
+                const index2 = parseInt(document.getElementById("note2Index").value);
+                const velocity2 = parseInt(document.getElementById("note2Velocity").value)
+                synth.noteOff(index1, velocity1);
+                synth.noteOff(index2, velocity2);
+            });
+        }
+
+        document.body.addEventListener("click", run);
+    </script>
+</body>
+
+</html>

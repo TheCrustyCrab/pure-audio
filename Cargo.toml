@@ -7,5 +7,6 @@ members = [
     "examples/gain", 
     "examples/oscillator",
     "examples/pan",
+    "examples/surge-synth-saw-demo",
 ]
 resolver = "2"

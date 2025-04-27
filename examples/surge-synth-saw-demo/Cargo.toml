@@ -1,0 +1,18 @@
+[package]
+name = "surge-synth-saw-demo"
+description = "A simplified port of https://github.com/surge-synthesizer/clap-saw-demo. Credits to the Surge Synthesizer Team."
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+pure-audio = { path = "../../pure-audio" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+pure-audio-wasm = { path = "../../pure-audio-wasm"}
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+getrandom = "0.3.2"
+pure-audio-clap = { path = "../../pure-audio-clap"}
