@@ -9,7 +9,6 @@ mod processor;
 pub use audio_worklet_node::*;
 pub use js_sys;
 pub use loader::*;
-pub use paste;
 pub use processor::*;
 pub use wasm_bindgen;
 pub use wasm_bindgen_futures;

@@ -15,14 +15,14 @@
     </div>
     <button id="playButton">Play</button>
     <script type="module">
-        import init, { create_oscillator_node } from "./oscillator.js";
+        import init, { createAudioNode } from "./oscillator.js";
 
         async function run() {
             document.body.removeEventListener("click", run);
 
             await init();
             const ctx = new AudioContext();
-            const oscillator = await create_oscillator_node(ctx);
+            const oscillator = await createAudioNode(ctx);
             oscillator.connect(ctx.destination);
             document.getElementById("playButton").addEventListener("pointerdown", () => {
                 const index1 = parseInt(document.getElementById("note1Index").value);

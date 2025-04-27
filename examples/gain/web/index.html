@@ -5,14 +5,14 @@
             Click anywhere to start
         </div>
         <script type="module">
-            import init, { create_gain_node_with_generated_parameter_ui } from "./gain.js";
+            import init, { createAudioNodeWithGeneratedParameterUI } from "./gain.js";
 
             async function run() {
                 document.body.removeEventListener("click", run);
 
                 await init();
                 const ctx = new AudioContext();
-                const gain = await create_gain_node_with_generated_parameter_ui(ctx);
+                const gain = await createAudioNodeWithGeneratedParameterUI(ctx);
                 const tone = new OscillatorNode(ctx, {
                     frequency: 440
                 });

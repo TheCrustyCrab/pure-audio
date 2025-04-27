@@ -211,14 +211,12 @@ where
 
     let (parameter_descriptors, parameter_copies) = 
         (parameter_descriptors.join(", "), parameter_copies.join("\n"));
-
-    let create_wasm_processor_function = format!("create_{name}_wasm_processor");
     
     // available global variables: sampleRate, currentTime, currentFrame
     // see https://developer.mozilla.org/en-US/docs/Web/API/AudioWorkletGlobalScope
     let code = format!(
         r#"
-        import {{ initSync, {create_wasm_processor_function} }} from '{meta_url}';
+        import {{ initSync, createWasmProcessor }} from '{meta_url}';
 
         registerProcessor("{name}", class {name} extends AudioWorkletProcessor {{
             constructor(options) {{
@@ -233,7 +231,7 @@ where
                         this.processor.indicate_params_changed();
                     }}
                 }};
-                const [module, sampleRate] = options.processorOptions;
+                const [module] = options.processorOptions;
                 const {{ memory }} = initSync({{ module }});
                 const onOutputEvent = event => this.port.postMessage({{
                     type: "outputEvent",
@@ -241,7 +239,7 @@ where
                         event
                     }}
                 }});
-                this.processor = {create_wasm_processor_function}(sampleRate, onOutputEvent);
+                this.processor = createWasmProcessor(sampleRate, onOutputEvent);
 
                 this.inputsPtr = this.processor.get_inputs_ptr() / 4; // NUM_INPUTS * NUM_CHANNELS * [f32; 128]
                 this.outputsPtr = this.processor.get_outputs_ptr() / 4; // NUM_OUTPUTS * NUM_CHANNELS * [f32; 128]
@@ -297,7 +295,7 @@ fn create_node(name: &str, num_inputs: usize, num_outputs: usize, num_channels: 
     }
     options.set_output_channel_count(&output_channel_counts);
     options.set_processor_options(Some(
-        &Array::of2(&wasm_bindgen::module(), &ctx.sample_rate().into())
+        &Array::of1(&wasm_bindgen::module())
     ));
     PureAudioWorkletNode::new_with_options(&ctx, name, &options)
 }

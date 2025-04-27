@@ -24,7 +24,7 @@ pub fn process(MonoEffectData { input, output, .. }: MonoEffectData, volume: Vol
 }
 
 #[cfg(target_arch = "wasm32")]
-pure_audio_wasm::pure_audio_wasm_entry!(Gain, process);
+pure_audio_wasm::pure_audio_wasm_entry!("Gain", process);
 
 #[cfg(not(target_arch = "wasm32"))]
 pure_audio_clap::pure_audio_clap_entry!("pureaudio.Gain", "PureAudioGain", process);

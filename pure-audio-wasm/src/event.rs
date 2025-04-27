@@ -6,7 +6,7 @@ pub(crate) struct WasmOutEventDispatcher {
     output_event_callback: js_sys::Function
 }
 
-impl<'a> WasmOutEventDispatcher {
+impl WasmOutEventDispatcher {
     #[inline]
     pub fn new(output_event_callback: js_sys::Function) -> Self {
         Self {

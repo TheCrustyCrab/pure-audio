@@ -20,7 +20,7 @@ pub fn process(
 }
 
 #[cfg(target_arch = "wasm32")]
-pure_audio_wasm::pure_audio_wasm_entry!(Pan, process);
+pure_audio_wasm::pure_audio_wasm_entry!("Pan", process);
 
 #[cfg(not(target_arch = "wasm32"))]
 pure_audio_clap::pure_audio_clap_entry!("pureaudio.Pan", "PureAudioPan", process);
