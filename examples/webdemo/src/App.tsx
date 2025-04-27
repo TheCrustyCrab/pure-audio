@@ -1,7 +1,7 @@
 import { ChangeEvent, useRef, useState } from 'react'
 import './App.css'
 import Keyboard from './components/keyboard'
-import { PureAudioWorkletNode } from '../../oscillator/web/oscillator' // todo: make generally available, not per audio module
+import { PureAudioWorkletNode } from './assets/oscillator/oscillator' // todo: make generally available, not per audio module
 
 type SynthType = "Oscillator" | "SurgeSynthSaw";
 
@@ -12,12 +12,12 @@ function App() {
 
     const synthModules = {
         "Oscillator": { 
-            importEsmodule: () => import("../../oscillator/web/oscillator"), 
-            importWasm: () => import("../../oscillator/web/oscillator_bg.wasm?url") 
+            importEsmodule: () => import("./assets/oscillator/oscillator"), 
+            importWasm: () => import("./assets/oscillator/oscillator_bg.wasm?url") 
         },
         "SurgeSynthSaw": { 
-            importEsmodule: () => import("../../surge-synth-saw-demo/web/surge_synth_saw_demo"), 
-            importWasm: () => import("../../surge-synth-saw-demo/web/surge_synth_saw_demo_bg.wasm?url") 
+            importEsmodule: () => import("./assets/surge-synth-saw-demo/surge_synth_saw_demo"), 
+            importWasm: () => import("./assets/surge-synth-saw-demo/surge_synth_saw_demo_bg.wasm?url") 
         },
     };
 
