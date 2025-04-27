@@ -27,10 +27,20 @@ jobs:
                 cargo build --target wasm32-unknown-unknown --release
                 wasm-bindgen ../../target/wasm32-unknown-unknown/release/oscillator.wasm --target web --out-dir web
 
+            - name: Build surge-synth-saw-demo example
+              working-directory: examples/surge-synth-saw-demo
+              run: |
+                cargo build --target wasm32-unknown-unknown --release
+                wasm-bindgen ../../target/wasm32-unknown-unknown/release/oscillator.wasm --target web --out-dir web
+            
+            - name: Build webdemo
+              run: npm install && npm run build
+              working-directory: examples/webdemo
+
             - uses: actions/upload-artifact@main
               with:
                 name: dist
-                path: examples/oscillator/web
+                path: examples/webdemo/dist
     
     deploy:
         runs-on: ubuntu-latest
