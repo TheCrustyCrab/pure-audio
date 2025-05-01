@@ -230,6 +230,8 @@ where
                         this.processor.note_off(msg.data.data.key, msg.data.data.velocity);
                     }} else if (msg.data.type === "indicateParamsChanged") {{
                         this.processor.indicate_params_changed();
+                    }} else if (msg.data.type === "requestStop") {{
+                        this.stopRequested = true;
                     }}
                 }};
                 const [module] = options.processorOptions;
@@ -249,6 +251,7 @@ where
                 this.float32Memory = new Float32Array(memory.buffer);
                 this.uint32Memory = new Uint32Array(memory.buffer);
                 this.int32Memory = new Int32Array(memory.buffer);
+                this.stopRequested = false;
             }}
 
             process(inputs, outputs, parameters) {{
@@ -258,7 +261,7 @@ where
                 {process_copy_parameters_per_sample}
                 this.processor.process();
                 {process_copy_output}
-                return true;
+                return !this.stopRequested; // todo: take tail time of synths into account
             }}
 
             static get parameterDescriptors() {{

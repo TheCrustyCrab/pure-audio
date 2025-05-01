@@ -41,5 +41,11 @@ if (root.AudioWorkletNode === undefined) {
         addOutputEventListener(callback) {
             this.outputEventListeners.push(callback);
         }
+
+        requestStop() {
+            this.port.postMessage({
+                type: "requestStop"
+            });
+        }
     };
 }

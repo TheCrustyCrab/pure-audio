@@ -5,25 +5,31 @@ import { PureAudioWorkletNode } from './assets/oscillator/oscillator' // todo: m
 
 type SynthType = "Oscillator" | "SurgeSynthSaw";
 
+enum InitializationState {
+    Uninitialized,
+    Initializing,
+    Initialized
+}
+
 function App() {
     const audioContext = useRef<AudioContext>(null);
     const audioNode = useRef<PureAudioWorkletNode>(null);
+    const [initializationState, setInitializationState] = useState<InitializationState>(InitializationState.Uninitialized);
     const [activeSynth, setActiveSynth] = useState<SynthType>("Oscillator");
 
     const synthModules = {
-        "Oscillator": { 
-            importEsmodule: () => import("./assets/oscillator/oscillator"), 
-            importWasm: () => import("./assets/oscillator/oscillator_bg.wasm?url") 
+        "Oscillator": {
+            importEsmodule: () => import("./assets/oscillator/oscillator")
         },
-        "SurgeSynthSaw": { 
-            importEsmodule: () => import("./assets/surge-synth-saw-demo/surge_synth_saw_demo"), 
-            importWasm: () => import("./assets/surge-synth-saw-demo/surge_synth_saw_demo_bg.wasm?url") 
+        "SurgeSynthSaw": {
+            importEsmodule: () => import("./assets/surge-synth-saw-demo/surge_synth_saw_demo")
         },
     };
 
     const initAudio = async () => {
         audioContext.current = new AudioContext();
         await loadSynth(activeSynth);
+        setInitializationState(InitializationState.Initializing);
     };
 
     const handleSelectSynthChange = async (evt: ChangeEvent<HTMLSelectElement>) => {
@@ -41,22 +47,31 @@ function App() {
     };
 
     const loadSynth = async (synthModule: SynthType) => {
-        audioNode.current?.disconnect();
-        const { importEsmodule, importWasm } = synthModules[synthModule];
+        if (audioNode.current) {
+            audioNode.current.disconnect();
+            audioNode.current.requestStop();
+        }
+        const { importEsmodule } = synthModules[synthModule];
         const {
             default: init,
-            createAudioNodeWithGeneratedParameterUI
+            createAudioNodeWithGeneratedParameterUI,
         } = await importEsmodule();
-        const { default: url } = await importWasm();
-        await init({ module_or_path: url });
+        await init();
         audioNode.current = await createAudioNodeWithGeneratedParameterUI(audioContext.current!, "parameters");
         audioNode.current.addOutputEventListener(console.log);
         audioNode.current!.connect(audioContext.current!.destination);
     }
 
     return (
-        <>
-            <button onClick={initAudio}>Init audio</button>
+        <div className="container">
+            {
+                initializationState !== InitializationState.Initialized
+                    ? <div className={`preinit-overlay ${initializationState === InitializationState.Initializing ? "hiding" : ""}`}
+                        onClick={initAudio} onAnimationEnd={() => setInitializationState(InitializationState.Initialized)}>
+                        <p>Click to start audio</p>
+                    </div>
+                    : null
+            }
             <div>
                 <select onChange={handleSelectSynthChange} value={activeSynth}>
                     {
@@ -68,7 +83,7 @@ function App() {
             </div>
             <div id="parameters"></div>
             <Keyboard minOctave={2} octaveCount={5} onNoteOff={handleNoteOff} onNoteOn={handleNoteOn} />
-        </>
+        </div>
     )
 }
 

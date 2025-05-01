@@ -4,7 +4,7 @@ export function Octave({ index, onNoteOn, activeNotes }: { index: number, onNote
     const renderKeySvg = (keySvgBaseId: string, x: number, keyOffset: number) => {
         const key = index * 12 + keyOffset;
         const svgLinkHref = `#${keySvgBaseId}${activeNotes.findIndex(activeNote => activeNote === key) !== -1 ? "On" : "Off" }`
-        return <use key={key} xlinkHref={svgLinkHref} x={x} y={0} onPointerDown={() => onNoteOn(key)} />
+        return <use key={key} data-key={key} xlinkHref={svgLinkHref} x={x} y={0} onPointerDown={() => onNoteOn(key)} />
     }
 
     const keyPositions = [
