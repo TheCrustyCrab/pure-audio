@@ -1,26 +1,26 @@
 import styles from "./styles.module.css";
 
+const keyPositions = [
+    { keySvgBaseId: "whiteLeftKey", x: 0 },
+    { keySvgBaseId: "blackKey", x: 20, },
+    { keySvgBaseId: "whiteMiddleKey", x: 25 },
+    { keySvgBaseId: "blackKey", x: 45 },
+    { keySvgBaseId: "whiteRightKey", x: 50},
+    { keySvgBaseId: "whiteLeftKey", x: 75 },
+    { keySvgBaseId: "blackKey", x: 95 },
+    { keySvgBaseId: "whiteMiddleKey", x: 100 },
+    { keySvgBaseId: "blackKey", x: 120 },
+    { keySvgBaseId: "whiteMiddleKey", x: 125 },
+    { keySvgBaseId: "blackKey", x: 145 },
+    { keySvgBaseId: "whiteRightKey", x: 150 }
+];
+
 export function Octave({ index, onNoteOn, activeNotes }: { index: number, onNoteOn: (key: number) => void, activeNotes: number[] }) {    
     const renderKeySvg = (keySvgBaseId: string, x: number, keyOffset: number) => {
         const key = index * 12 + keyOffset;
         const svgLinkHref = `#${keySvgBaseId}${activeNotes.findIndex(activeNote => activeNote === key) !== -1 ? "On" : "Off" }`
         return <use key={key} data-key={key} xlinkHref={svgLinkHref} x={x} y={0} onPointerDown={() => onNoteOn(key)} />
     }
-
-    const keyPositions = [
-        { keySvgBaseId: "whiteLeftKey", x: 0 },
-        { keySvgBaseId: "blackKey", x: 20, },
-        { keySvgBaseId: "whiteMiddleKey", x: 25 },
-        { keySvgBaseId: "blackKey", x: 45 },
-        { keySvgBaseId: "whiteRightKey", x: 50},
-        { keySvgBaseId: "whiteLeftKey", x: 75 },
-        { keySvgBaseId: "blackKey", x: 95 },
-        { keySvgBaseId: "whiteMiddleKey", x: 100 },
-        { keySvgBaseId: "blackKey", x: 120 },
-        { keySvgBaseId: "whiteMiddleKey", x: 125 },
-        { keySvgBaseId: "blackKey", x: 145 },
-        { keySvgBaseId: "whiteRightKey", x: 150 }
-    ];
 
     return <svg width={175} height={100}>
         <defs>

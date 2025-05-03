@@ -30,7 +30,7 @@ const chordKeyOffsets: { [key in PointerChordMode]: Array<number> } = {
 }
 
 function Keyboard({ minOctave, octaveCount, onNoteOn, onNoteOff }: KeyboardProps) {
-    const [midiAccess, setMidiAccess] = useState<MIDIAccess>();
+    const midiAccess = useRef<MIDIAccess>(null);
     const [midiInputs, setMidiInputs] = useState<MIDIInput[]>([]);
     const [selectedMidiInputIndex, setSelectedMidiInputIndex] = useState<number>();
     const [pointerChordMode, setPointerChordMode] = useState<PointerChordMode>(PointerChordMode.Note);
@@ -40,16 +40,15 @@ function Keyboard({ minOctave, octaveCount, onNoteOn, onNoteOff }: KeyboardProps
     useEffect(() => {
         // initial activation
         const initMidi = async () => {
-            const midiAccess = await navigator.requestMIDIAccess();
-            setMidiAccess(midiAccess);
-            midiAccess.addEventListener("statechange", () => updateMidiInputs);
-            updateMidiInputs.call(midiAccess);
+            midiAccess.current = await navigator.requestMIDIAccess();
+            midiAccess.current.addEventListener("statechange", handleMidiStateChange);
+            handleMidiStateChange.call(midiAccess.current);
         };
 
         initMidi();
 
         return () => {
-            midiAccess?.removeEventListener("statechange", updateMidiInputs);
+            midiAccess.current?.removeEventListener("statechange", handleMidiStateChange);
         };
     }, []);
 
@@ -66,14 +65,19 @@ function Keyboard({ minOctave, octaveCount, onNoteOn, onNoteOff }: KeyboardProps
         };
     }, [minOctave, octaveCount, activeNotes, onNoteOn, onNoteOff]);
 
-    function updateMidiInputs(this: MIDIAccess) {
+    const handleMidiStateChange = useCallback(function (this: MIDIAccess) {
         const inputs = [...this.inputs.values()];
-        if (selectedMidiInputIndex === undefined && inputs.length > 0) {
-            selectMidiInput(inputs[0]);
-            setSelectedMidiInputIndex(0);
+        if (inputs.length > 0) {
+            if (selectedMidiInputIndex === undefined) {
+                selectMidiInput(inputs[0]);
+                setSelectedMidiInputIndex(0);
+            }
+        } else {            
+            setSelectedMidiInputIndex(undefined);
         }
+
         setMidiInputs(inputs);
-    };
+    }, [selectedMidiInputIndex]);
 
     const handleSelectMidiInput = (index: number) => {
         console.log(index);
