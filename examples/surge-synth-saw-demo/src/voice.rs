@@ -1,7 +1,6 @@
 use std::f32::consts::PI;
 use crate::{AEGMode, AmplitudeAttack, AmplitudeEnvelopeIsGate, AmplitudeRelease, Cutoff, FilterMode, OscillatorDetune, PreFilterVCA, Resonance, UnisonCount, UnisonSpread, MAX_UNISON};
 
-#[derive(Clone, Copy)]
 pub struct Voice {
     pub(crate) port_id: i32,
     pub(crate) channel: i32,

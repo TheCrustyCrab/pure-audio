@@ -13,6 +13,9 @@ jobs:
             - name: Build workspace
               run: cargo build
 
+            - name: Run tests
+              run: cargo test
+
             - uses: cargo-bins/cargo-binstall@main
 
             - name: Install wasm32-unknown-unknown build target

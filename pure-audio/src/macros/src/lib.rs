@@ -24,8 +24,11 @@ impl Parse for ForParamsInput {
 /// Calls the provided macro with each number of parameters in the range from 0 to the provided max_params (exclusive).
 /// # Example
 /// ```
+/// use pure_audio_proc_macro::for_params;
 /// macro_rules! my_macro {
-///     ...
+///     ($e:expr) => {
+///         $e
+///     }
 /// }
 /// 
 /// for_params!(my_macro, 3);

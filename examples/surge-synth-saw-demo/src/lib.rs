@@ -1,10 +1,12 @@
 use core::f32;
-use pure_audio::{parameter, Event, OutEvent, State, StereoSynthData};
+use std::array;
+use pure_audio::{Event, OutEvent, State, StereoSynthData, parameter};
 use random::get_random;
 use voice::Voice;
 
 mod random;
 mod voice;
+mod tests;
 
 const MAX_VOICES: usize = 64;
 const MAX_UNISON: usize = 7;
@@ -48,7 +50,7 @@ pub enum FilterMode {
     All,
 }
 
-#[derive(Clone, Copy, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum AEGMode {
     #[default]
     Off,
@@ -65,7 +67,7 @@ pub struct SawState {
 impl Default for SawState {
     fn default() -> Self {
         Self {
-            voices: [Voice::default(); MAX_VOICES]
+            voices: array::from_fn(|_| Voice::default())
         }
     }
 }
@@ -98,8 +100,16 @@ pub fn process(
 ) {
     for event in events {
         match event {
-            &Event::NoteOn { port_index, channel, key, note_id, .. } => {
-                let voice = voices.iter_mut().find(|voice| voice.aeg_mode == AEGMode::Off);
+            &Event::NoteOn {
+                port_index,
+                channel,
+                key,
+                note_id,
+                ..
+            } => {
+                let voice = voices
+                    .iter_mut()
+                    .find(|voice| voice.aeg_mode == AEGMode::Off);
                 if let Some(voice) = voice {
                     voice.activate(
                         port_index,
@@ -120,7 +130,13 @@ pub fn process(
                 } else {
                     let index = get_random(MAX_VOICES);
                     let voice = &mut voices[index];
-                    out_events.push(OutEvent::NoteEnd { port_index: voice.port_id, channel: voice.channel, key: voice.key as u8, note_id: voice.note_id, velocity: 0 });
+                    out_events.push(OutEvent::NoteEnd {
+                        port_index: voice.port_id,
+                        channel: voice.channel,
+                        key: voice.key as u8,
+                        note_id: voice.note_id,
+                        velocity: 0,
+                    });
                     voice.activate(
                         port_index,
                         channel,
@@ -139,17 +155,35 @@ pub fn process(
                     );
                 }
             }
-            &Event::NoteOff { port_index, channel, key, .. } => {
-                let voice = voices
-                    .iter_mut()
-                    .find(|voice| voice.is_playing() && voice.key == key as i32 && voice.port_id == port_index && voice.channel == channel);
-                if let Some(voice) = voice {
+            &Event::NoteOff {
+                port_index,
+                channel,
+                key,
+                ..
+            } => {
+                let voices = voices.iter_mut().filter(|voice| {
+                    voice.is_playing()
+                        && voice.key == key as i32
+                        && voice.port_id == port_index
+                        && voice.channel == channel
+                });
+                for voice in voices {
                     voice.release();
                 }
             }
             Event::ParamsChanged => {
                 for voice in voices.iter_mut().filter(|voice| voice.is_playing()) {
-                    voice.update(unison_spread, oscillator_detune, cutoff, resonance, prefilter_vca, amplitude_attack, amplitude_release, amplitude_envelope_is_gate, filter_mode);
+                    voice.update(
+                        unison_spread,
+                        oscillator_detune,
+                        cutoff,
+                        resonance,
+                        prefilter_vca,
+                        amplitude_attack,
+                        amplitude_release,
+                        amplitude_envelope_is_gate,
+                        filter_mode,
+                    );
                 }
             }
         }
@@ -165,8 +199,24 @@ pub fn process(
         }
     }
 
-    for Voice { aeg_mode, port_id, channel, key, note_id, .. } in voices.iter_mut().filter(|voice| { voice.aeg_mode == AEGMode::NewlyOff }) {
-        out_events.push(OutEvent::NoteEnd { port_index: *port_id, channel: *channel, key: *key as u8, note_id: *note_id, velocity: 0 });
+    for Voice {
+        aeg_mode,
+        port_id,
+        channel,
+        key,
+        note_id,
+        ..
+    } in voices
+        .iter_mut()
+        .filter(|voice| voice.aeg_mode == AEGMode::NewlyOff)
+    {
+        out_events.push(OutEvent::NoteEnd {
+            port_index: *port_id,
+            channel: *channel,
+            key: *key as u8,
+            note_id: *note_id,
+            velocity: 0,
+        });
         *aeg_mode = AEGMode::Off;
     }
 }
