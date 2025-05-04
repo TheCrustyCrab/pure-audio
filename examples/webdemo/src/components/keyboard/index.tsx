@@ -31,7 +31,8 @@ const chordKeyOffsets: { [key in PointerChordMode]: Array<number> } = {
 
 function Keyboard({ minOctave, octaveCount, onNoteOn, onNoteOff }: KeyboardProps) {
     const midiAccess = useRef<MIDIAccess>(null);
-    const [midiInputs, setMidiInputs] = useState<MIDIInput[]>([]);
+    const midiInputs = useRef<MIDIInput[]>([]);
+    const [midiInputNames, setMidiInputNames] = useState<string[]>([]);
     const [selectedMidiInputIndex, setSelectedMidiInputIndex] = useState<number>();
     const [pointerChordMode, setPointerChordMode] = useState<PointerChordMode>(PointerChordMode.Note);
     const pointerActiveKey = useRef<number>(null);
@@ -55,9 +56,6 @@ function Keyboard({ minOctave, octaveCount, onNoteOn, onNoteOff }: KeyboardProps
     useEffect(() => {
         document.body.addEventListener("pointerup", handlePointerUpOrCancel);
         document.body.addEventListener("pointercancel", handlePointerUpOrCancel);
-        if (selectedMidiInputIndex !== undefined) {
-            midiInputs[selectedMidiInputIndex].onmidimessage = handleMidiMessage;
-        }
 
         return () => {
             document.body.removeEventListener("pointerup", handlePointerUpOrCancel);
@@ -67,21 +65,29 @@ function Keyboard({ minOctave, octaveCount, onNoteOn, onNoteOff }: KeyboardProps
 
     const handleMidiStateChange = useCallback(function (this: MIDIAccess) {
         const inputs = [...this.inputs.values()];
-        if (inputs.length > 0) {
-            if (selectedMidiInputIndex === undefined) {
-                selectMidiInput(inputs[0]);
-                setSelectedMidiInputIndex(0);
+        // selectedMidiInputIndex is always undefined due to the overridden 'this'
+        setSelectedMidiInputIndex(currentSelectedMidiInputIndex => {
+            let newIndex: number | undefined = currentSelectedMidiInputIndex;
+            if (inputs.length > 0) {
+                if (currentSelectedMidiInputIndex === undefined) {
+                    selectMidiInput(inputs[0]);
+                }
+                midiInputs.current = inputs;
+            } else {            
+                newIndex = undefined;
             }
-        } else {            
-            setSelectedMidiInputIndex(undefined);
-        }
 
-        setMidiInputs(inputs);
-    }, [selectedMidiInputIndex]);
+            setMidiInputNames(inputs.map(input => input.name || ""));    
+            return newIndex;
+        });
+    }, []);
 
     const handleSelectMidiInput = (index: number) => {
-        console.log(index);
-        const selectedInput = midiInputs[index];
+        if (selectedMidiInputIndex !== undefined) {
+            const oldSelectedInput = midiInputs.current[selectedMidiInputIndex];
+            oldSelectedInput.onmidimessage = null;
+        }
+        const selectedInput = midiInputs.current[index];
         selectMidiInput(selectedInput);
         setSelectedMidiInputIndex(index);
     };
@@ -117,19 +123,15 @@ function Keyboard({ minOctave, octaveCount, onNoteOn, onNoteOff }: KeyboardProps
         const keyOffsets = chordKeyOffsets[pointerChordMode];
         const keys = keyOffsets.map(offset => key + offset);
         setActiveNotes([...activeNotes, ...keys]);
-        keys.forEach(key => {
-            onNoteOn(key, 127);
-            console.log(`Note on: ${key}`);
-        });
+        keys.forEach(key => onNoteOn(key, 127));
     };
 
     const handlePointerUpOrCancel = (_evt: PointerEvent) => {
         document.body.removeEventListener("pointermove", handlePointerMove);
-        activeNotes.forEach(activeNote => {
-            onNoteOff(activeNote, 127);
-            console.log(`Note off: ${activeNote}`);
+        setActiveNotes(currentActiveNodes => {
+            currentActiveNodes.forEach(activeNode => onNoteOff(activeNode, 127));
+            return [];
         });
-        setActiveNotes([]);
     };
 
     const handlePointerMove = useCallback((evt: PointerEvent) => {
@@ -173,7 +175,7 @@ function Keyboard({ minOctave, octaveCount, onNoteOn, onNoteOff }: KeyboardProps
                 MIDI device:
                 <select onChange={(evt) => handleSelectMidiInput(parseInt(evt.target.value))}>
                     {
-                        midiInputs.map((input, i) => <option key={i} value={i}>{input.name}</option>)
+                        midiInputNames.map((name, i) => <option key={i} value={i}>{name}</option>)
                     }
                 </select>
             </div>
