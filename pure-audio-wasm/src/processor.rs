@@ -51,7 +51,7 @@ impl WasmProcessor {
     }
 }
 
-pub trait WasmProcessorImplementation: 'static {
+trait WasmProcessorImplementation: 'static {
     fn get_inputs_ptr(&mut self) -> usize;
     fn get_outputs_ptr(&self) -> usize;
     fn get_parameters_ptr(&mut self) -> usize;
@@ -62,20 +62,31 @@ pub trait WasmProcessorImplementation: 'static {
     fn indicate_params_changed(&mut self);
 }
 
-struct WasmProcessorWrapper<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, Params> {
-    processor: P,
+struct WasmProcessorWrapper<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S> 
+where
+    P: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>,
+    A: 'static,
+    Params: 'static,
+    S: 'static + Default
+{
+    processor: P::Out,
     events: Vec<Event>,
     out_event_dispatcher: WasmOutEventDispatcher,
     inputs: [[[f32; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_INPUTS],
     outputs: [[[f32; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_OUTPUTS],
     parameters: [u32; NUM_PARAMS],
     parameters_per_sample: [Option<[u32; PROCESSOR_BLOCK_LENGTH]>; NUM_PARAMS],
-    marker: PhantomData<Params>
+    marker: PhantomData<(A, Params, S)>
 }
 
-impl<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, Params, const NUM_PARAMS: usize> WasmProcessorWrapper<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params>
+impl<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S> WasmProcessorWrapper<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>
+where
+    P: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>,
+    A: 'static,
+    Params: 'static,
+    S: 'static + Default
 {
-    fn new(processor: P, param_descriptors: &[(ParameterDescriptor, AutomationRate); NUM_PARAMS], output_event_callback: js_sys::Function) -> Self {
+    fn new(processor: P::Out, param_descriptors: &[(ParameterDescriptor, AutomationRate); NUM_PARAMS], output_event_callback: js_sys::Function) -> Self {
         Self {
             processor,
             events: vec![],
@@ -94,13 +105,11 @@ impl<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: u
     }
 }
 
-pub trait IntoWasmProcessor<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S> {
-    const PARAM_DESCRIPTORS: [(ParameterDescriptor, AutomationRate); NUM_PARAMS];
+pub(crate) trait IntoWasmProcessor<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S> {
     fn into_wasm_processor(self, sample_rate: f32, output_event_callback: js_sys::Function) -> WasmProcessor;
 }
 
-pub trait IntoWasmProcessorImplementation<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S> {
-    const PARAM_DESCRIPTORS: [(ParameterDescriptor, AutomationRate); NUM_PARAMS];
+trait IntoWasmProcessorImplementation<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S> {
     fn into_wasm_processor_implementation(self, sample_rate: f32, output_event_callback: js_sys::Function) -> impl WasmProcessorImplementation;
 }
 
@@ -108,17 +117,18 @@ impl<I, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: u
 where
     I: IntoWasmProcessorImplementation<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>
 {
-    const PARAM_DESCRIPTORS: [(ParameterDescriptor, AutomationRate); NUM_PARAMS] = I::PARAM_DESCRIPTORS;
 
     fn into_wasm_processor(self, sample_rate: f32, output_event_callback: js_sys::Function) -> WasmProcessor {
         WasmProcessor::new(Box::new(self.into_wasm_processor_implementation(sample_rate, output_event_callback)))
     }
 }
 
-impl<P, Params, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize> WasmProcessorImplementation for WasmProcessorWrapper<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params>
+impl<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S> WasmProcessorImplementation for WasmProcessorWrapper<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>
 where
-    P: 'static + Processor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params>,
-    Params: 'static
+    P: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>,
+    A: 'static,
+    Params: 'static,
+    S: 'static + Default
 {
     fn get_inputs_ptr(&mut self) -> usize {
         self.inputs.as_ptr() as *const _ as usize
@@ -137,9 +147,6 @@ where
     }
 
     fn process(&mut self) {
-        // clear outputs
-        self.outputs = [[[0.0; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_OUTPUTS];
-
         // map [[[f32; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_INPUTS] -> [[&[f32]; NUM_CHANNELS]; NUM_INPUTS]
         let inputs = 
             self
@@ -151,7 +158,7 @@ where
                         .map(|channel| channel.as_ref())
                 );
 
-        // map [[[f32; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_OUTPUTS] -> [[&[f32]; NUM_CHANNELS]; NUM_OUTPUTS]
+        // map [[[f32; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_OUTPUTS] -> [[&mut [f32]; NUM_CHANNELS]; NUM_OUTPUTS]
         let outputs =
                 self
                     .outputs
@@ -184,17 +191,16 @@ where
     }
 }
 
-impl<F, A, Params, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, S> IntoWasmProcessorImplementation<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S> for F
+impl<P, A, Params, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, S> IntoWasmProcessorImplementation<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S> for P
 where 
-    F: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>,
+    P: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>,
+    A: 'static,
     Params: 'static,
     S: 'static + Default
-{    
-    const PARAM_DESCRIPTORS: [(ParameterDescriptor, AutomationRate); NUM_PARAMS] = F::PARAM_DESCRIPTORS;
-
+{
     fn into_wasm_processor_implementation(self, sample_rate: f32, output_event_callback: js_sys::Function) -> impl WasmProcessorImplementation {
         let mut processor = self.into_processor();
         processor.activate(sample_rate, PROCESSOR_BLOCK_LENGTH, PROCESSOR_BLOCK_LENGTH);
-        WasmProcessorWrapper::new(processor, &F::PARAM_DESCRIPTORS, output_event_callback)
+        WasmProcessorWrapper::<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>::new(processor, &P::PARAM_DESCRIPTORS, output_event_callback)
     }
 }
