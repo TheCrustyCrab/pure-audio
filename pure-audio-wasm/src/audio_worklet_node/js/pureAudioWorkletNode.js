@@ -6,9 +6,10 @@ if (root.AudioWorkletNode === undefined) {
     PureAudioWorkletNode = class Dummy { };
 } else {
     PureAudioWorkletNode = class PureAudioWorkletNode extends AudioWorkletNode {
-        constructor(context, name, options) {
+        constructor(context, name, options, parameterValueToText) {
             super(context, name, options);
             this.outputEventListeners = [];
+            this.parameterValueToText = parameterValueToText;
 
             this.port.onmessage = msg => {
                 if (msg.data.type === "outputEvent") {
@@ -46,6 +47,14 @@ if (root.AudioWorkletNode === undefined) {
             this.port.postMessage({
                 type: "requestStop"
             });
+        }
+
+        getParameterText(key) {
+            const parameter = this.parameters.get(key);
+            if (parameter === undefined) {
+                throw new Error("parameter not found");
+            }
+            return this.parameterValueToText(key, parameter.value);
         }
     };
 }

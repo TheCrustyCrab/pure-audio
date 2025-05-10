@@ -1,5 +1,5 @@
 use core::f32;
-use std::array;
+use std::{array, fmt::Write};
 use pure_audio::{Event, OutEvent, State, StereoSynthData, parameter};
 use random::get_random;
 use voice::Voice;
@@ -11,8 +11,12 @@ mod tests;
 const MAX_VOICES: usize = 64;
 const MAX_UNISON: usize = 7;
 
-#[parameter(min = 0, max = 7, default = 3)]
+#[parameter(min = 0, max = 7, default = 3, value_to_text = uni_value_to_text)]
 pub struct UnisonCount(u32);
+
+fn uni_value_to_text(value: f64, writer: &mut impl Write) -> bool {
+    write!(writer, "{value} voices").is_ok()
+} 
 
 #[parameter(min = 0, max = 100, default = 10)]
 pub struct UnisonSpread(f32);

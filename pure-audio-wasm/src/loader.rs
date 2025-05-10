@@ -1,5 +1,5 @@
 use crate::{es_module::{ImportMeta, IMPORT_META}, PureAudioWorkletNode, PROCESSOR_BLOCK_LENGTH};
-use js_sys::{Array, Object, Reflect};
+use js_sys::{Array, JsString, Object, Reflect};
 use pure_audio::{AutomationRate, IntoProcessor, ParameterDescriptor, ParameterKind};
 use wasm_bindgen::{prelude::Closure, JsCast, JsValue, UnwrapThrowExt};
 use wasm_bindgen_futures::JsFuture;
@@ -29,14 +29,14 @@ where
         registered_modules.push(&name.into());
     }
 
-    let audio_worklet_node = create_node(name, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, ctx)?;
+    let audio_worklet_node = create_node(name, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, ctx, process)?;
 
     if let Some(div_id) = generate_parameter_ui_div_id {
         let window = window().unwrap();
         let document = window.document().unwrap();
         let control = document.create_element("div")?;
         let param_map = audio_worklet_node.parameters().unwrap();
-        let port = audio_worklet_node.port().unwrap();        
+        let port = audio_worklet_node.port().unwrap();
 
         fn add_parameter_input_change_event_handler(input_element: &HtmlInputElement, parameter: AudioParam, port: &MessagePort, map_f32: impl Fn(&HtmlInputElement) -> f32 + 'static) 
         -> Result<(), JsValue> {
@@ -57,8 +57,33 @@ where
 
            Ok(())
         }
+
+        fn add_float_parameter_input_change_event_handler(input_element: &HtmlInputElement,
+            parameter: AudioParam, port: &MessagePort,
+            map_f32: impl Fn(&HtmlInputElement) -> f32 + 'static, map_value_text: impl Fn(f64) -> String + 'static)
+        -> Result<(), JsValue> {
+            let port = port.clone();
+            let closure = Closure::<dyn Fn(_)>::new(move |event: web_sys::Event| {
+                let input_element = event.target().unwrap().dyn_into::<HtmlInputElement>().unwrap();
+                let value = map_f32(&input_element);
+                parameter.set_value(value);
+                let text = map_value_text(value as f64);
+                let label_element = input_element.next_element_sibling().unwrap();
+                label_element.set_text_content(Some(&text));
+                let msg = Object::new();
+                let _ = Reflect::set(&msg, &"type".into(), &"indicateParamsChanged".into());
+                let _ = port.post_message(&msg);
+            });
+
+            input_element.add_event_listener_with_callback("input", closure.as_ref().unchecked_ref())?;
+
+            // rely on weak references and the JS GC to drop the closure
+           closure.forget();
+
+           Ok(())
+        }
         
-        for (ParameterDescriptor { name, default_value, min_value, max_value, kind }, ..) in P::PARAM_DESCRIPTORS {
+        for (index, &(ParameterDescriptor { name, default_value, min_value, max_value, kind }, ..)) in P::PARAM_DESCRIPTORS.iter().enumerate() {
             let paragraph = document.create_element("p")?;
             paragraph.set_text_content(Some(&format!("{name}:")));
             match kind {
@@ -99,8 +124,18 @@ where
                     slider.set_step(step);
                     slider.set_value(&default_value.to_string());
                     let parameter = param_map.get(name).unwrap();
-                    add_parameter_input_change_event_handler(&slider, parameter, &port, |input| input.value_as_number() as f32)?;
+                    let map_value_text = move |value: f64| {
+                        let mut buffer = String::new();
+                        P::parameter_value_to_text(index, value, &mut buffer);
+                        buffer
+                    };
                     paragraph.append_child(&slider)?;
+                    let text = map_value_text(default_value as f64);
+                    let label_element = document.create_element("div")?;
+                    label_element.set_text_content(Some(&text));
+                    paragraph.append_child(&label_element)?;
+                    let _ = add_float_parameter_input_change_event_handler(&slider, parameter, &port, 
+                        |input| input.value_as_number() as f32, map_value_text);
                 }
             }
             control.append_child(&paragraph)?;
@@ -286,7 +321,9 @@ where
     Ok(())
 }
 
-fn create_node(name: &str, num_inputs: usize, num_outputs: usize, num_channels: usize, ctx: &AudioContext) -> Result<PureAudioWorkletNode, JsValue> {
+fn create_node<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, P, A, Params, S>(name: &str, num_inputs: usize, num_outputs: usize, num_channels: usize, ctx: &AudioContext, _process: P) -> Result<PureAudioWorkletNode, JsValue>
+where
+    P: IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S> {
     log_1(&"Creating node".into());
     let options = AudioWorkletNodeOptions::new();
     options.set_number_of_inputs(num_inputs as u32);
@@ -301,5 +338,14 @@ fn create_node(name: &str, num_inputs: usize, num_outputs: usize, num_channels: 
     options.set_processor_options(Some(
         &Array::of1(&wasm_bindgen::module())
     ));
-    PureAudioWorkletNode::new_with_options(&ctx, name, &options)
+    
+    let parameter_text_to_value_closure = Closure::<dyn Fn(JsString, JsValue) -> String>::new(|key, value: JsValue| {
+        let param_index = P::PARAM_DESCRIPTORS.iter().position(|&(ParameterDescriptor { name, .. }, _)| key == name).unwrap();
+        let mut buffer = String::new();
+        P::parameter_value_to_text(param_index, value.unchecked_into_f64(), &mut buffer);
+        buffer
+    });
+
+    // rely on weak references and the JS GC to drop the closure
+    PureAudioWorkletNode::new_with_options(&ctx, name, &options, parameter_text_to_value_closure.into_js_value())
 }

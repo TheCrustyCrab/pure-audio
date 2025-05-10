@@ -409,7 +409,7 @@ enum SupportedNewType {
 /// - min: float literal (default: 0.0, not for bools and enums)
 /// - max: float literal (default: 1.0, not for bools and enums)
 /// - text_to_value: expression refering to a [`fn(&str) -> Option<f64>`] (default: built-in float parsing)
-/// - value_to_text: expression refering to a [`fn(f64, &mut std::fmt::Write) -> bool`] (default: built-in float formatting)
+/// - value_to_text: expression refering to a [`fn(f64, &mut impl std::fmt::Write) -> bool`] (default: built-in float formatting)
 #[proc_macro_attribute]
 pub fn parameter(attr: TokenStream, input: TokenStream) -> TokenStream {
     parameter_impl(attr, input).unwrap_or_else(|e| TokenStream::from(e.into_compile_error()))

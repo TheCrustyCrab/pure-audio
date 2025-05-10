@@ -14,6 +14,7 @@ extern "C" {
         context: &BaseAudioContext,
         name: &str,
         options: &AudioWorkletNodeOptions,
+        parameter_value_to_text: JsValue
     ) -> Result<PureAudioWorkletNode, JsValue>;
 }
 

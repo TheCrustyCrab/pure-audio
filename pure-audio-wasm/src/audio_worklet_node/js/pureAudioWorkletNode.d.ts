@@ -3,4 +3,5 @@ export class PureAudioWorkletNode extends AudioWorkletNode {
     noteOff(key: number, velocity: number): void;
     addOutputEventListener(callback: (event: any) => void): void;
     requestStop(): void;
+    getParameterText(key: string): string;
 }
