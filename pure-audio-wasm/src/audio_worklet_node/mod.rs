@@ -1,3 +1,4 @@
+use js_sys::Map;
 use wasm_bindgen::prelude::*;
 use web_sys::{AudioWorkletNode, AudioWorkletNodeOptions, BaseAudioContext, EventTarget};
 
@@ -14,8 +15,11 @@ extern "C" {
         context: &BaseAudioContext,
         name: &str,
         options: &AudioWorkletNodeOptions,
-        parameter_value_to_text: JsValue
+        wasm_exports: JsValue,
+        parameter_name_index_map: Map
     ) -> Result<PureAudioWorkletNode, JsValue>;
+    #[wasm_bindgen(method, js_class = "PureAudioWorkletNode", js_name = "__getRawParameterConverterPtr")]
+    pub fn get_raw_parameter_converter_ptr(this: &PureAudioWorkletNode) -> usize;
 }
 
 // implementing note event types in javascript due to the limited available API in the AudioWorkletGlobalScope (no TextDecoder so no serialization)

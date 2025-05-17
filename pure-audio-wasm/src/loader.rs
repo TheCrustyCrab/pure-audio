@@ -1,5 +1,5 @@
-use crate::{es_module::{ImportMeta, IMPORT_META}, PureAudioWorkletNode, PROCESSOR_BLOCK_LENGTH};
-use js_sys::{Array, JsString, Object, Reflect};
+use crate::{es_module::{ImportMeta, IMPORT_META}, PureAudioWorkletNode, parameter::WasmParameterConverter, PROCESSOR_BLOCK_LENGTH};
+use js_sys::{Array, Map, Object, Reflect};
 use pure_audio::{AutomationRate, IntoProcessor, ParameterDescriptor, ParameterKind};
 use wasm_bindgen::{prelude::Closure, JsCast, JsValue, UnwrapThrowExt};
 use wasm_bindgen_futures::JsFuture;
@@ -58,23 +58,23 @@ where
            Ok(())
         }
 
-        fn add_float_parameter_input_change_event_handler(input_element: &HtmlInputElement,
+        fn add_float_parameter_input_change_event_handler(index: usize, input_element: & HtmlInputElement,
             parameter: AudioParam, port: &MessagePort,
-            map_f32: impl Fn(&HtmlInputElement) -> f32 + 'static, map_value_text: impl Fn(f64) -> String + 'static)
+            map_f32: impl Fn(&HtmlInputElement) -> f32 + 'static, parameter_converter_ptr: usize)
         -> Result<(), JsValue> {
             let port = port.clone();
             let closure = Closure::<dyn Fn(_)>::new(move |event: web_sys::Event| {
                 let input_element = event.target().unwrap().dyn_into::<HtmlInputElement>().unwrap();
                 let value = map_f32(&input_element);
                 parameter.set_value(value);
-                let text = map_value_text(value as f64);
+                let parameter_converter = WasmParameterConverter::from_raw_ptr(parameter_converter_ptr);
+                let text = parameter_converter.value_to_text(index, value as f64);
                 let label_element = input_element.next_element_sibling().unwrap();
                 label_element.set_text_content(Some(&text));
                 let msg = Object::new();
                 let _ = Reflect::set(&msg, &"type".into(), &"indicateParamsChanged".into());
                 let _ = port.post_message(&msg);
             });
-
             input_element.add_event_listener_with_callback("input", closure.as_ref().unchecked_ref())?;
 
             // rely on weak references and the JS GC to drop the closure
@@ -123,19 +123,16 @@ where
                     };
                     slider.set_step(step);
                     slider.set_value(&default_value.to_string());
-                    let parameter = param_map.get(name).unwrap();
-                    let map_value_text = move |value: f64| {
-                        let mut buffer = String::new();
-                        P::parameter_value_to_text(index, value, &mut buffer);
-                        buffer
-                    };
                     paragraph.append_child(&slider)?;
-                    let text = map_value_text(default_value as f64);
+                    let parameter_converter_ptr = audio_worklet_node.get_raw_parameter_converter_ptr();
+                    let parameter_converter = WasmParameterConverter::from_raw_ptr(parameter_converter_ptr);
+                    let text = parameter_converter.value_to_text(index, default_value as f64);
                     let label_element = document.create_element("div")?;
                     label_element.set_text_content(Some(&text));
                     paragraph.append_child(&label_element)?;
-                    let _ = add_float_parameter_input_change_event_handler(&slider, parameter, &port, 
-                        |input| input.value_as_number() as f32, map_value_text);
+                    let parameter = param_map.get(name).unwrap();
+                    let _ = add_float_parameter_input_change_event_handler(index, &slider, parameter, &port,
+                        |input| input.value_as_number() as f32, parameter_converter_ptr);
                 }
             }
             control.append_child(&paragraph)?;
@@ -338,14 +335,11 @@ where
     options.set_processor_options(Some(
         &Array::of1(&wasm_bindgen::module())
     ));
-    
-    let parameter_text_to_value_closure = Closure::<dyn Fn(JsString, JsValue) -> String>::new(|key, value: JsValue| {
-        let param_index = P::PARAM_DESCRIPTORS.iter().position(|&(ParameterDescriptor { name, .. }, _)| key == name).unwrap();
-        let mut buffer = String::new();
-        P::parameter_value_to_text(param_index, value.unchecked_into_f64(), &mut buffer);
-        buffer
-    });
 
-    // rely on weak references and the JS GC to drop the closure
-    PureAudioWorkletNode::new_with_options(&ctx, name, &options, parameter_text_to_value_closure.into_js_value())
+    let parameter_name_index_map = Map::new();
+    for (index, &(ParameterDescriptor { name, .. }, ..)) in P::PARAM_DESCRIPTORS.iter().enumerate() {
+        parameter_name_index_map.set(&name.into(), &index.into());
+    }
+
+    PureAudioWorkletNode::new_with_options(&ctx, name, &options, wasm_bindgen::exports(), parameter_name_index_map)
 }

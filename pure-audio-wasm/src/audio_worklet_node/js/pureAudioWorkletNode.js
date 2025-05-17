@@ -5,11 +5,18 @@ const root = (() => eval)()('this');
 if (root.AudioWorkletNode === undefined) {
     PureAudioWorkletNode = class Dummy { };
 } else {
+    let finalizationRegistry;
     PureAudioWorkletNode = class PureAudioWorkletNode extends AudioWorkletNode {
-        constructor(context, name, options, parameterValueToText) {
+        constructor(context, name, options, wasm, parameterIndexNameMap) {
             super(context, name, options);
             this.outputEventListeners = [];
-            this.parameterValueToText = parameterValueToText;
+            this.wasm = wasm;
+            this.parameterIndexNameMap = parameterIndexNameMap;
+            finalizationRegistry = (typeof FinalizationRegistry === 'undefined')
+                ? { register: () => {}, unregister: () => {} }
+                : new FinalizationRegistry(ptr => wasm.destroyRawWasmParameterConverter(ptr));
+            this.rawParameterConverterPtr = wasm.createRawWasmParameterConverter();
+            finalizationRegistry.register(this, this.rawParameterConverterPtr);
 
             this.port.onmessage = msg => {
                 if (msg.data.type === "outputEvent") {
@@ -54,7 +61,13 @@ if (root.AudioWorkletNode === undefined) {
             if (parameter === undefined) {
                 throw new Error("parameter not found");
             }
-            return this.parameterValueToText(key, parameter.value);
+            
+            const index = this.parameterIndexNameMap.get(key);
+            return this.wasm.valueToText(this.rawParameterConverterPtr, index, parameter.value);
+        }
+
+        __getRawParameterConverterPtr() {
+            return this.rawParameterConverterPtr;
         }
     };
 }
