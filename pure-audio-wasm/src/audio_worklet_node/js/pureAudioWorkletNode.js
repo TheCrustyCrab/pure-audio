@@ -46,6 +46,28 @@ if (root.AudioWorkletNode === undefined) {
             });
         }
 
+        scheduleNoteOn(time, key, velocity) {
+            this.port.postMessage({
+                type: "scheduleNoteOn",
+                data: {
+                    time,
+                    key,
+                    velocity
+                }
+            });
+        }
+
+        scheduleNoteOff(time, key, velocity) {
+            this.port.postMessage({
+                type: "scheduleNoteOff",
+                data: {
+                    time,
+                    key,
+                    velocity
+                }
+            });
+        }
+
         addOutputEventListener(callback) {
             this.outputEventListeners.push(callback);
         }

@@ -1,4 +1,4 @@
-use js_sys::Map;
+use js_sys::{JsString, Map};
 use wasm_bindgen::prelude::*;
 use web_sys::{AudioWorkletNode, AudioWorkletNodeOptions, BaseAudioContext, EventTarget};
 
@@ -24,18 +24,19 @@ extern "C" {
 
 // implementing note event types in javascript due to the limited available API in the AudioWorkletGlobalScope (no TextDecoder so no serialization)
 #[wasm_bindgen(typescript_custom_section)]
-const TS_NOTE_END_EVENT: &'static str = include_str!("js/noteEndEvent.d.ts");
+const TS_NOTE_END_EVENT: &'static str = include_str!("js/noteEvent.d.ts");
 
-#[wasm_bindgen(module = "/src/audio_worklet_node/js/noteEndEvent.js")]
+#[wasm_bindgen(module = "/src/audio_worklet_node/js/noteEvent.js")]
 extern "C" {
-    #[wasm_bindgen (extends = EventTarget , extends = :: js_sys :: Object , js_name = NoteEndEvent , typescript_type = "NoteEndEvent")]
+    #[wasm_bindgen (extends = EventTarget , extends = :: js_sys :: Object , js_name = NoteEvent , typescript_type = "NoteEvent")]
     #[derive(Debug, Clone, PartialEq, Eq)]
-    pub type NoteEndEvent;
-    #[wasm_bindgen(constructor, js_class = "NoteEndEvent")]
+    pub type NoteEvent;
+    #[wasm_bindgen(constructor, js_class = "NoteEvent")]
     pub fn new(
+        event_type: JsString,
         port_index: i32,
         channel: i32,
         key: u8,
         note_id: i32,
-    ) -> NoteEndEvent;
+    ) -> NoteEvent;
 }

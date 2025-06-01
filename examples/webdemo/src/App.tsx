@@ -2,6 +2,8 @@ import { ChangeEvent, useRef, useState } from 'react'
 import './App.css'
 import Keyboard from './components/keyboard'
 import { PureAudioWorkletNode } from './assets/oscillator/oscillator' // todo: make generally available, not per audio module
+import MidiPlayer from './components/midi-player'
+import { SimpleMidiEvent } from './assets/midi-file-parser/midi_file_parser'
 
 type SynthType = "Oscillator" | "SurgeSynthSaw";
 
@@ -16,6 +18,8 @@ function App() {
     const audioNode = useRef<PureAudioWorkletNode>(null);
     const [initializationState, setInitializationState] = useState<InitializationState>(InitializationState.Uninitialized);
     const [activeSynth, setActiveSynth] = useState<SynthType>("Oscillator");
+    const [scheduledActiveNotes, setScheduledActiveNotes] = useState<number[]>([]);
+    const [midiFile, setMidiFile] = useState<{ name: string, data: Uint8Array }>();
 
     const synthModules = {
         "Oscillator": {
@@ -46,6 +50,14 @@ function App() {
         audioNode.current?.noteOff(key, velocity)
     };
 
+    const handleOutputEvent = (event: any) => {
+        if (event.eventType === "scheduleOff") {
+            setScheduledActiveNotes(current => current.filter(activeNote => activeNote !== event.key));
+        } else if (event.eventType === "scheduleOn") {
+            setScheduledActiveNotes(current => [...current, event.key]);
+        }
+    }
+
     const loadSynth = async (synthModule: SynthType) => {
         if (audioNode.current) {
             audioNode.current.disconnect();
@@ -58,12 +70,62 @@ function App() {
         } = await importEsmodule();
         await init();
         audioNode.current = await createAudioNodeWithGeneratedParameterUI(audioContext.current!, "parameters");
-        audioNode.current.addOutputEventListener(console.log);
+        audioNode.current.addOutputEventListener(handleOutputEvent);
         audioNode.current!.connect(audioContext.current!.destination);
     }
 
+    const handleMidiPlayerSchedule = (event: SimpleMidiEvent) => {
+        if (event.type === "off") {
+            audioNode.current?.scheduleNoteOff(event.time, event.key, event.velocity);
+        } else {
+            audioNode.current?.scheduleNoteOn(event.time, event.key, event.velocity);
+        }
+    }
+ 
+    const handleDragEnter = (_evt: React.DragEvent) => {
+        // todo
+    };
+
+    const handleDragLeave = (_evt: React.DragEvent) => {
+        // todo
+    };    
+
+    const handleDrop = async (evt: React.DragEvent) => {
+        console.log("drop");
+        console.log(evt);
+
+        evt.preventDefault();
+
+        if (!evt.dataTransfer) {
+            return;
+        }
+
+        if (evt.dataTransfer.items) {
+            if (evt.dataTransfer.items.length != 1) {
+                return;
+            }
+
+            const item = evt.dataTransfer.items[0];
+            if (item.kind === "file") {
+                const file = item.getAsFile()!;
+                const name = file.name;
+                const data = new Uint8Array(await file.arrayBuffer());
+                setMidiFile({ name, data });
+            };
+        } else {
+            if (evt.dataTransfer.files.length != 1) {
+                return;
+            }
+
+            const file = evt.dataTransfer.files[0];
+            const name = file.name;
+            const data = new Uint8Array(await file.arrayBuffer());
+            setMidiFile({ name, data });
+        }
+    };
+
     return (
-        <div className="container">
+        <div className="container" onDragOver={evt => evt.preventDefault()} onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onDrop={handleDrop}>
             {
                 initializationState !== InitializationState.Initialized
                     ? <div className={`preinit-overlay ${initializationState === InitializationState.Initializing ? "hiding" : ""}`}
@@ -82,7 +144,8 @@ function App() {
                 </select>
             </div>
             <div id="parameters"></div>
-            <Keyboard minOctave={2} octaveCount={5} onNoteOff={handleNoteOff} onNoteOn={handleNoteOn} />
+            <MidiPlayer audioContext={audioContext.current} midiFile={midiFile} onSchedule={handleMidiPlayerSchedule} />
+            <Keyboard minOctave={2} octaveCount={5} scheduledActiveNotes={scheduledActiveNotes} onNoteOff={handleNoteOff} onNoteOn={handleNoteOn} />
         </div>
     )
 }

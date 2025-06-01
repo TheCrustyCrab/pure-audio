@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Octave } from './octave';
 
 enum MidiStatus {
@@ -9,6 +9,7 @@ enum MidiStatus {
 interface KeyboardProps {
     minOctave: number,
     octaveCount: number,
+    scheduledActiveNotes: number[],
     onNoteOn: (key: number, velocity: number) => void,
     onNoteOff: (key: number, velocity: number) => void
 }
@@ -29,7 +30,7 @@ const chordKeyOffsets: { [key in PointerChordMode]: Array<number> } = {
     [PointerChordMode.Sus4]: [0, 5, 7]
 }
 
-function Keyboard({ minOctave, octaveCount, onNoteOn, onNoteOff }: KeyboardProps) {
+function Keyboard({ minOctave, octaveCount, scheduledActiveNotes, onNoteOn, onNoteOff }: KeyboardProps) {
     const midiAccess = useRef<MIDIAccess>(null);
     const midiInputs = useRef<MIDIInput[]>([]);
     const [midiInputNames, setMidiInputNames] = useState<string[]>([]);
@@ -37,6 +38,7 @@ function Keyboard({ minOctave, octaveCount, onNoteOn, onNoteOff }: KeyboardProps
     const [pointerChordMode, setPointerChordMode] = useState<PointerChordMode>(PointerChordMode.Note);
     const pointerActiveKey = useRef<number>(null);
     const [activeNotes, setActiveNotes] = useState<number[]>([]);
+    const allActiveNotes = useMemo(() => [...activeNotes, ...scheduledActiveNotes], [activeNotes, scheduledActiveNotes]);
 
     useEffect(() => {
         // initial activation
@@ -182,7 +184,7 @@ function Keyboard({ minOctave, octaveCount, onNoteOn, onNoteOff }: KeyboardProps
             {
                 [...Array(octaveCount)].map((_, i) => {
                     const octaveIndex = i + minOctave;
-                    return <Octave key={octaveIndex} index={octaveIndex} onNoteOn={handleNoteOn} activeNotes={activeNotes} />;
+                    return <Octave key={octaveIndex} index={octaveIndex} onNoteOn={handleNoteOn} activeNotes={allActiveNotes} />;
                 })
             }
         </>

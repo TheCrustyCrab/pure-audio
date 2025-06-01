@@ -1,5 +1,6 @@
-export class NoteEndEvent {
-    constructor(portIndex, channel, key, noteId) {
+export class NoteEvent {
+    constructor(eventType, portIndex, channel, key, noteId) {
+        this.eventType = eventType;
         this.portIndex = portIndex;
         this.channel = channel;
         this.key = key;

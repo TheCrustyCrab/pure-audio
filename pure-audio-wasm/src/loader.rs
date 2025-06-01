@@ -260,6 +260,10 @@ where
                         this.processor.note_on(msg.data.data.key, msg.data.data.velocity);
                     }} else if (msg.data.type === "noteOff") {{
                         this.processor.note_off(msg.data.data.key, msg.data.data.velocity);
+                    }} else if (msg.data.type === "scheduleNoteOn") {{
+                        this.processor.schedule_note_on(msg.data.data.time, msg.data.data.key, msg.data.data.velocity);
+                    }} else if (msg.data.type === "scheduleNoteOff") {{
+                        this.processor.schedule_note_off(msg.data.data.time, msg.data.data.key, msg.data.data.velocity);
                     }} else if (msg.data.type === "indicateParamsChanged") {{
                         this.processor.indicate_params_changed();
                     }} else if (msg.data.type === "requestStop") {{
@@ -270,9 +274,7 @@ where
                 const {{ memory }} = initSync({{ module }});
                 const onOutputEvent = event => this.port.postMessage({{
                     type: "outputEvent",
-                    data: {{
-                        event
-                    }}
+                    data: event
                 }});
                 this.processor = createWasmProcessor(sampleRate, onOutputEvent);
 
@@ -284,6 +286,8 @@ where
                 this.uint32Memory = new Uint32Array(memory.buffer);
                 this.int32Memory = new Int32Array(memory.buffer);
                 this.stopRequested = false;
+                this.lastTime = 0;
+                this.allowedProcessingTime = Math.round(1/375 * 100000000) / 100000000; // 375 blocks of 128 samples at 48000 kHz
             }}
 
             process(inputs, outputs, parameters) {{
@@ -293,6 +297,10 @@ where
                 {process_copy_parameters_per_sample}
                 this.processor.process();
                 {process_copy_output}
+                const processingTime = currentTime - this.lastTime;
+                if (processingTime > this.allowedProcessingTime)
+                    console.log("processing took too long: " + processingTime);
+                this.lastTime = currentTime;
                 return !this.stopRequested; // todo: take tail time of synths into account
             }}
 

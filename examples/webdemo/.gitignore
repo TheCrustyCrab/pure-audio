@@ -23,5 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 
+src/assets/midi-file-parser
 src/assets/oscillator
 src/assets/surge-synth-saw-demo

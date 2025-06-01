@@ -1,6 +1,7 @@
-use std::marker::PhantomData;
+use std::{collections::VecDeque, marker::PhantomData};
 use pure_audio::{AutomationRate, Event, IntoProcessor, OutEvents, ParameterDescriptor, Processor};
 use wasm_bindgen::prelude::*;
+use web_sys::AudioWorkletGlobalScope;
 use crate::{event::WasmOutEventDispatcher, PROCESSOR_BLOCK_LENGTH};
 
 #[wasm_bindgen]
@@ -46,6 +47,14 @@ impl WasmProcessor {
         self.implementation.note_off(key, velocity);
     }
 
+    pub fn schedule_note_on(&mut self, time: f64, key: u8, velocity: u8) {
+        self.implementation.schedule_note_on(time, key, velocity);
+    }
+
+    pub fn schedule_note_off(&mut self, time: f64, key: u8, velocity: u8) {
+        self.implementation.schedule_note_off(time, key, velocity);
+    }
+
     pub fn indicate_params_changed(&mut self) {
         self.implementation.indicate_params_changed();
     }
@@ -59,6 +68,8 @@ trait WasmProcessorImplementation: 'static {
     fn process(&mut self);
     fn note_on(&mut self, key: u8, velocity: u8);
     fn note_off(&mut self, key: u8, velocity: u8);
+    fn schedule_note_on(&mut self, time: f64, key: u8, velocity: u8);
+    fn schedule_note_off(&mut self, time: f64, key: u8, velocity: u8);
     fn indicate_params_changed(&mut self);
 }
 
@@ -71,6 +82,7 @@ where
 {
     processor: P::Out,
     events: Vec<Event>,
+    scheduled_events: VecDeque<(f64, Event)>,
     out_event_dispatcher: WasmOutEventDispatcher,
     inputs: [[[f32; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_INPUTS],
     outputs: [[[f32; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_OUTPUTS],
@@ -90,6 +102,7 @@ where
         Self {
             processor,
             events: vec![],
+            scheduled_events: VecDeque::new(),
             out_event_dispatcher: WasmOutEventDispatcher::new(output_event_callback),
             inputs: [[[0.0; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_INPUTS],
             outputs: [[[0.0; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_OUTPUTS],
@@ -147,6 +160,30 @@ where
     }
 
     fn process(&mut self) {
+        if !self.scheduled_events.is_empty() {
+            let scope = js_sys::global().unchecked_into::<AudioWorkletGlobalScope>();
+            let time = scope.current_time();
+
+            while let Some(&(schedule_time, ..)) = self.scheduled_events.get(0) {
+                if schedule_time > time {
+                    break;
+                }
+                
+                let (.., event) = unsafe { self.scheduled_events.pop_front().unwrap_unchecked() };
+                
+                match &event {
+                    Event::NoteOn { key, .. } => {
+                        self.out_event_dispatcher.dispatch_note_schedule_on_event(*key);
+                    },
+                    Event::NoteOff { key, .. } => {
+                        self.out_event_dispatcher.dispatch_note_schedule_off_event(*key);
+                    },
+                    _ => {}
+                }
+                self.events.push(event);
+            }
+        }
+
         // map [[[f32; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_INPUTS] -> [[&[f32]; NUM_CHANNELS]; NUM_INPUTS]
         let inputs = 
             self
@@ -184,6 +221,14 @@ where
     fn note_off(&mut self, key: u8, velocity: u8) {
         // currently not using port_id, channel and note_id from wasm
         self.events.push(Event::NoteOff { key, velocity, port_index: 0, channel: 0, note_id: 0 });
+    }
+
+    fn schedule_note_on(&mut self, time: f64, key: u8, velocity: u8) {
+        self.scheduled_events.push_back((time, Event::NoteOn { port_index: 0, channel: 0, key, note_id: 0, velocity }));
+    }
+
+    fn schedule_note_off(&mut self, time: f64, key: u8, velocity: u8) {
+        self.scheduled_events.push_back((time, Event::NoteOff { port_index: 0, channel: 0, key, note_id: 0, velocity }));
     }
 
     fn indicate_params_changed(&mut self) {
