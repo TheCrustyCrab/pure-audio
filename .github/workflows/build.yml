@@ -25,7 +25,7 @@ jobs:
               run: cargo binstall wasm-bindgen-cli@0.2.100 --no-confirm
 
             - name: Build midi-file-parser
-              working-directory: examples/midi-file-parser
+              working-directory: examples/webdemo/midi-file-parser
               run: |
                 cargo build --target wasm32-unknown-unknown --release
                 wasm-bindgen ../../target/wasm32-unknown-unknown/release/midi_file_parser.wasm --target web --out-dir ../webdemo/src/assets/midi-file-parser
