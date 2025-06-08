@@ -1,6 +1,7 @@
-import { useMemo, useRef, useState } from "react";
+import { ChangeEvent, useMemo, useRef, useState } from "react";
 import { default as initMidiFileParser, midiToSimpleTracks, SimpleMidiEvent, SimpleMidiTrack } from "../../assets/midi-file-parser/midi_file_parser";
 import useWasm from "../../hooks/useWasm";
+import useInterval from "../../hooks/useInterval";
 
 function MidiPlayer({ audioContext, midiFile, onSchedule }: { audioContext?: AudioContext | null, midiFile: { name: string, data: Uint8Array } | undefined, onSchedule: (event: SimpleMidiEvent) => void }) {
     const [selectedMidiTrackIndex, setSelectedMidiTrackIndex] = useState<number>();
@@ -26,62 +27,99 @@ function MidiPlayer({ audioContext, midiFile, onSchedule }: { audioContext?: Aud
 
         return { midiTracks, error };
     }, [midiFile]);
-    const schedulerIntervalId = useRef<number>(null);
-    const playMidiStartTime = useRef<number>(null);
+    const [playMidiStartTime, setPlayMidiStartTime] = useState<number | null>(null);
     const eventIterator = useRef<ArrayIterator<SimpleMidiEvent>>(null);
+    const scheduledNotes = useRef<Set<number>>(new Set<number>());
+    const [pausingTime, setPausingTime] = useState<number | null>(null);
     const nextEvent = useRef<SimpleMidiEvent>(null);
-    const [_tempo, setTempo] = useState<number>(130);
-    // retrieve latest tempo value from a running callback, which is not aware of the actual state
-    const getTempo = () => {
-        let tempo = null;
-        setTempo(t => {
-            tempo = t;
-            return t;
-        });
-        return tempo!;
-    }
+    const [tempo, setTempo] = useState<number>(130);
+    const beatsPerSecond = useMemo(() => tempo / 60, [tempo]);
+    const secondsPerBeat = useMemo(() => 60 / tempo, [tempo]);
+    const [elapsedTimeInBeats, setElapsedTimeInBeats] = useState(0);
     const interval = 25;
     const scheduleAheadTime = 0.1;
 
     const midiFileParserLoaded = useWasm(initMidiFileParser);
 
+    const handleMidiTrackChange = (evt: ChangeEvent<HTMLSelectElement>) => {
+        stopMidi();
+        setSelectedMidiTrackIndex(parseInt(evt.target.value));
+        eventIterator.current = null;
+    }
+
     const scheduleMidiEvents = () => {
-        if (nextEvent.current === null) {
-            clearInterval(schedulerIntervalId.current!);
-            return;
-        }
+        const elapsedSeconds = audioContext!.currentTime - playMidiStartTime!;
+        const elapsedBeats = elapsedSeconds * beatsPerSecond;
+        setElapsedTimeInBeats(current => current + interval / 1000 * beatsPerSecond);
 
         while (nextEvent.current !== null && nextEvent.current.time < audioContext!.currentTime + scheduleAheadTime) {
-            onSchedule(nextEvent.current);
+            if (pausingTime === null || nextEvent.current.type === "off") {
+                onSchedule(nextEvent.current);
+            }
+
+            if (nextEvent.current.type === "on") {
+                scheduledNotes.current.add(nextEvent.current.key);
+            } else {
+                scheduledNotes.current.delete(nextEvent.current.key);
+                if (pausingTime !== null && scheduledNotes.current.size === 0) {
+                    console.log("end pause");
+                    setPlayMidiStartTime(null);
+                    setPausingTime(null);
+                    const remainingEvents = [...eventIterator.current!].map(event => { 
+                        return { ...event, time: event.time - elapsedBeats }; 
+                    });
+                    eventIterator.current = remainingEvents[Symbol.iterator]();
+                    break;
+                }
+            }
 
             if (!advanceNextEvent()) {
-                clearInterval(schedulerIntervalId.current!);
+                setPlayMidiStartTime(null);
+                eventIterator.current = null;
                 break;
             }
         }
     };
 
+    useInterval(scheduleMidiEvents, playMidiStartTime === null ? null : interval);
+
     const advanceNextEvent = () => {
-        const tempo = getTempo();
         const { value, done } = eventIterator.current!.next();
         if (done) {
             return false;
         }
 
-        const secondsPerBeat = 60 / tempo;
-        nextEvent.current = { ...value, time: value.time * secondsPerBeat + playMidiStartTime.current! };
+        nextEvent.current = { ...value, time: value.time * secondsPerBeat + playMidiStartTime! };
         return true;
     };
 
-    const playMidi = () => {
-        playMidiStartTime.current = audioContext!.currentTime;
-        eventIterator.current = loadedMidiTracks.midiTracks[selectedMidiTrackIndex!].events![Symbol.iterator]();
+    const playMidi = () => {        
+        if (eventIterator.current === null) {
+            setElapsedTimeInBeats(0);
+            eventIterator.current = loadedMidiTracks.midiTracks[selectedMidiTrackIndex!].events![Symbol.iterator]();
+        }
 
         if (!advanceNextEvent()) {
             return;
         }
 
-        schedulerIntervalId.current = setInterval(scheduleMidiEvents, interval);
+        setPlayMidiStartTime(audioContext!.currentTime);
+    }
+
+    const pauseMidi = () => {
+        setPausingTime(audioContext!.currentTime);
+    }
+
+    const stopMidi = () => {
+        setPlayMidiStartTime(null);
+
+        scheduledNotes.current.forEach(note => {
+            onSchedule({ key: note, time: audioContext!.currentTime, type: "off", velocity: 0 });
+        });
+        scheduledNotes.current.clear();
+
+        setElapsedTimeInBeats(0);
+        eventIterator.current = null;
     }
 
     if (!midiFileParserLoaded) {
@@ -103,14 +141,16 @@ function MidiPlayer({ audioContext, midiFile, onSchedule }: { audioContext?: Aud
                 !midiFile || loadedMidiTracks.error 
                     ? null
                     : <>
-                        <select onChange={evt => setSelectedMidiTrackIndex(parseInt(evt.target.value))}>
+                        <select onChange={handleMidiTrackChange}>
                             {
                                 loadedMidiTracks.midiTracks.map((track, index) => 
                                     <option key={index} value={index}>Track {index}: {track.beats} beats</option>
                                 )
                             }
                         </select>
-                        <button onClick={playMidi}>Play</button>
+                        <button onClick={playMidiStartTime === null ? playMidi : pauseMidi}>{ playMidiStartTime === null ? "Play" : "Pause" }</button>
+                        <button onClick={stopMidi}>Stop</button>
+                        <span>{Math.ceil(elapsedTimeInBeats)}</span>
                         <p>
                             Tempo <input type="number" min={60} max={150} defaultValue={130} onChange={evt => setTempo(parseInt(evt.target.value))}></input>
                         </p>
