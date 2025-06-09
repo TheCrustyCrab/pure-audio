@@ -127,7 +127,7 @@ where
                     let parameter_converter_ptr = audio_worklet_node.get_raw_parameter_converter_ptr();
                     let parameter_converter = WasmParameterConverter::from_raw_ptr(parameter_converter_ptr);
                     let text = parameter_converter.value_to_text(index, default_value as f64);
-                    let label_element = document.create_element("div")?;
+                    let label_element = document.create_element("span")?;
                     label_element.set_text_content(Some(&text));
                     paragraph.append_child(&label_element)?;
                     let parameter = param_map.get(name).unwrap();

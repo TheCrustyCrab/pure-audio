@@ -4,6 +4,7 @@ import Keyboard from './components/keyboard'
 import { PureAudioWorkletNode } from './assets/oscillator/oscillator' // todo: make generally available, not per audio module
 import MidiPlayer from './components/midi-player'
 import { SimpleMidiEvent } from './assets/midi-file-parser/midi_file_parser'
+import FileDropzone from './components/file-dropzone'
 
 type SynthType = "Oscillator" | "SurgeSynthSaw";
 
@@ -81,72 +82,43 @@ function App() {
             audioNode.current?.scheduleNoteOn(event.time, event.key, event.velocity);
         }
     }
- 
-    const handleDragEnter = (_evt: React.DragEvent) => {
-        // todo
-    };
 
-    const handleDragLeave = (_evt: React.DragEvent) => {
-        // todo
-    };    
-
-    const handleDrop = async (evt: React.DragEvent) => {
-        console.log("drop");
-        console.log(evt);
-
-        evt.preventDefault();
-
-        if (!evt.dataTransfer) {
-            return;
-        }
-
-        if (evt.dataTransfer.items) {
-            if (evt.dataTransfer.items.length != 1) {
-                return;
-            }
-
-            const item = evt.dataTransfer.items[0];
-            if (item.kind === "file") {
-                const file = item.getAsFile()!;
-                const name = file.name;
-                const data = new Uint8Array(await file.arrayBuffer());
-                setMidiFile({ name, data });
-            };
-        } else {
-            if (evt.dataTransfer.files.length != 1) {
-                return;
-            }
-
-            const file = evt.dataTransfer.files[0];
-            const name = file.name;
-            const data = new Uint8Array(await file.arrayBuffer());
-            setMidiFile({ name, data });
-        }
-    };
+    const handleFileDrop = async (file: File) => {
+        setMidiFile({ name: file.name, data: new Uint8Array(await file.arrayBuffer()) });
+    }
 
     return (
-        <div className="container" onDragOver={evt => evt.preventDefault()} onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onDrop={handleDrop}>
-            {
-                initializationState !== InitializationState.Initialized
-                    ? <div className={`preinit-overlay ${initializationState === InitializationState.Initializing ? "hiding" : ""}`}
-                        onClick={initAudio} onAnimationEnd={() => setInitializationState(InitializationState.Initialized)}>
-                        <p>Click to start audio</p>
-                    </div>
-                    : null
-            }
-            <div>
-                <select onChange={handleSelectSynthChange} value={activeSynth}>
-                    {
-                        Object.keys(synthModules).map(synthModule =>
-                            <option key={synthModule} value={synthModule}>{synthModule}</option>
-                        )
-                    }
-                </select>
+        <FileDropzone acceptedTypes={["audio/mid"]} onFileDrop={handleFileDrop}>
+            <div className="container">
+                {
+                    initializationState !== InitializationState.Initialized
+                        ? <div className={`preinit-overlay ${initializationState === InitializationState.Initializing ? "hiding" : ""}`}
+                            onClick={initAudio} onAnimationEnd={() => setInitializationState(InitializationState.Initialized)}>
+                            <p>Click to start audio</p>
+                        </div>
+                        : null
+                }
+                <fieldset>
+                    <legend>Synth</legend>
+                    <select onChange={handleSelectSynthChange} value={activeSynth}>
+                        {
+                            Object.keys(synthModules).map(synthModule =>
+                                <option key={synthModule} value={synthModule}>{synthModule}</option>
+                            )
+                        }
+                    </select>
+                    <div id="parameters"></div>
+                </fieldset>
+                <fieldset>
+                    <legend>MIDI Player</legend>
+                    <MidiPlayer audioContext={audioContext.current} midiFile={midiFile} onSchedule={handleMidiPlayerSchedule} />
+                </fieldset>
+                <fieldset>
+                    <legend>Keyboard</legend>
+                    <Keyboard minOctave={2} octaveCount={5} scheduledActiveNotes={scheduledActiveNotes} onNoteOff={handleNoteOff} onNoteOn={handleNoteOn} />
+                </fieldset>
             </div>
-            <div id="parameters"></div>
-            <MidiPlayer audioContext={audioContext.current} midiFile={midiFile} onSchedule={handleMidiPlayerSchedule} />
-            <Keyboard minOctave={2} octaveCount={5} scheduledActiveNotes={scheduledActiveNotes} onNoteOff={handleNoteOff} onNoteOn={handleNoteOn} />
-        </div>
+        </FileDropzone>
     )
 }
 

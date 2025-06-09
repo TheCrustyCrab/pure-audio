@@ -164,6 +164,14 @@ function Keyboard({ minOctave, octaveCount, scheduledActiveNotes, onNoteOn, onNo
     return (
         <>
             <div>
+                MIDI device:
+                <select onChange={(evt) => handleSelectMidiInput(parseInt(evt.target.value))}>
+                    {
+                        midiInputNames.map((name, i) => <option key={i} value={i}>{name}</option>)
+                    }
+                </select>
+            </div>
+            <div>
                 {
                     [PointerChordMode.Note, PointerChordMode.Major, PointerChordMode.Minor, PointerChordMode.Sus2, PointerChordMode.Sus4].map(mode =>
                         <Fragment key={mode}>
@@ -172,14 +180,6 @@ function Keyboard({ minOctave, octaveCount, scheduledActiveNotes, onNoteOn, onNo
                         </Fragment>
                     )
                 }
-            </div>
-            <div>
-                MIDI device:
-                <select onChange={(evt) => handleSelectMidiInput(parseInt(evt.target.value))}>
-                    {
-                        midiInputNames.map((name, i) => <option key={i} value={i}>{name}</option>)
-                    }
-                </select>
             </div>
             {
                 [...Array(octaveCount)].map((_, i) => {

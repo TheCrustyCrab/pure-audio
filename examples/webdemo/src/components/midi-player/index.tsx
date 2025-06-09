@@ -3,7 +3,13 @@ import { default as initMidiFileParser, midiToSimpleTracks, SimpleMidiEvent, Sim
 import useWasm from "../../hooks/useWasm";
 import useInterval from "../../hooks/useInterval";
 
-function MidiPlayer({ audioContext, midiFile, onSchedule }: { audioContext?: AudioContext | null, midiFile: { name: string, data: Uint8Array } | undefined, onSchedule: (event: SimpleMidiEvent) => void }) {
+interface MidiPlayerProps {
+    audioContext?: AudioContext | null, 
+    midiFile: { name: string, data: Uint8Array } | undefined,
+    onSchedule: (event: SimpleMidiEvent) => void
+}
+
+function MidiPlayer({ audioContext, midiFile, onSchedule }: MidiPlayerProps) {
     const [selectedMidiTrackIndex, setSelectedMidiTrackIndex] = useState<number>();
     const loadedMidiTracks = useMemo(() => {
         let midiTracks: SimpleMidiTrack[] = [];
@@ -62,7 +68,6 @@ function MidiPlayer({ audioContext, midiFile, onSchedule }: { audioContext?: Aud
             } else {
                 scheduledNotes.current.delete(nextEvent.current.key);
                 if (pausingTime !== null && scheduledNotes.current.size === 0) {
-                    console.log("end pause");
                     setPlayMidiStartTime(null);
                     setPausingTime(null);
                     const remainingEvents = [...eventIterator.current!].map(event => { 

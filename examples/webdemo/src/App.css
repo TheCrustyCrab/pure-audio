@@ -47,3 +47,11 @@
     opacity: 0;
   }
 }
+
+fieldset {
+  border-radius: 10px;
+}
+
+legend {
+  font-weight: 600;
+}
