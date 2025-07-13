@@ -4,10 +4,11 @@ members = [
     "pure-audio/src/macros",
     "pure-audio-clap",
     "pure-audio-wasm",
+    "examples/freeverb",
     "examples/gain", 
     "examples/oscillator",
     "examples/pan",
-    "examples/surge-synth-saw-demo", 
+    "examples/surge-synth-saw-demo",
     "examples/webdemo/midi-file-parser",
 ]
 resolver = "2"

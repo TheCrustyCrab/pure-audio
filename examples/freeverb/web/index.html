@@ -1,0 +1,28 @@
+<html>
+    <head></head>
+    <body>
+        <div>
+            Click anywhere to start
+        </div>
+        <div id="parameters"></div>
+        <script type="module">
+            import init, { createAudioNodeWithGeneratedParameterUI } from "./freeverb.js";
+
+            async function run() {
+                document.body.removeEventListener("click", run);
+
+                await init();
+                const ctx = new AudioContext();
+                const freeverb = await createAudioNodeWithGeneratedParameterUI(ctx, document.getElementById("parameters"));
+                const tone = new OscillatorNode(ctx, {
+                    frequency: 440
+                });
+                tone.start();
+                tone.connect(freeverb);
+                freeverb.connect(ctx.destination);
+            }
+
+            document.body.addEventListener("click", run);
+        </script>
+    </body>
+</html>

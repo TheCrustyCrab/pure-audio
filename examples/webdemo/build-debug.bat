@@ -1,3 +1,5 @@
+cargo build --manifest-path ../freeverb/Cargo.toml --target wasm32-unknown-unknown
+wasm-bindgen ../../target/wasm32-unknown-unknown/debug/freeverb.wasm --target web --out-dir src/assets/freeverb --keep-debug
 cargo build --manifest-path ../oscillator/Cargo.toml --target wasm32-unknown-unknown
 wasm-bindgen ../../target/wasm32-unknown-unknown/debug/oscillator.wasm --target web --out-dir src/assets/oscillator --keep-debug
 cargo build --manifest-path ../surge-synth-saw-demo/Cargo.toml --target wasm32-unknown-unknown

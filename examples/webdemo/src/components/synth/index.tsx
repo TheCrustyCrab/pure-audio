@@ -7,9 +7,12 @@ type SynthType = "Oscillator" | "SurgeSynthSaw";
 
 function Synth({ audioContext }: { audioContext: AudioContext }) {
     const audioNode = useRef<PureAudioWorkletNode>(null);
+    const effectNode = useRef<PureAudioWorkletNode>(null);
     const [activeSynth, setActiveSynth] = useState<SynthType>("Oscillator");
     const eventBus = useEventBus();
     const synthParameterControl = useRef<HTMLDivElement>(null);
+    const [freeverbEffectEnabled, setFreeverbEffectEnabled] = useState(false);
+    const effectParameterControl = useRef<HTMLDivElement>(null);
 
     // this hook avoids the 2nd simulatenous initialization in Strict Mode which caused the registerProcessor to fail detecting the first registration
     useAsyncEffect(
@@ -19,6 +22,7 @@ function Synth({ audioContext }: { audioContext: AudioContext }) {
             eventBus.subscribe("noteScheduleOff", handleNoteScheduleOff);
             eventBus.subscribe("noteScheduleOn", handleNoteScheduleOn);
             
+            await loadFreeverbEffect();
             await loadSynth(activeSynth);
         },
         async () => {
@@ -61,6 +65,24 @@ function Synth({ audioContext }: { audioContext: AudioContext }) {
         setActiveSynth(synthModule);
     };
 
+    const handleFreeverbCheckboxChange = (evt: ChangeEvent<HTMLInputElement>) => {
+        const enabled = evt.target.checked;
+        setFreeverbEffectEnabled(enabled);
+        toggleFreeverbInAudioGraph(enabled);
+    }
+
+    const toggleFreeverbInAudioGraph = (enabled: boolean) => {
+        if (enabled) {
+            audioNode.current?.disconnect();
+            audioNode.current?.connect(effectNode.current!);
+            effectNode.current?.connect(audioContext.destination);
+        } else {
+            effectNode.current?.disconnect();
+            audioNode.current?.disconnect();
+            audioNode.current?.connect(audioContext.destination);
+        }
+    }
+
     const handleOutputEvent = (event: any) => {
         if (event.eventType === "scheduleOff") {
             eventBus.publish("noteScheduledOffTriggered", { key: event.key as number, velocity: 0 });
@@ -82,7 +104,16 @@ function Synth({ audioContext }: { audioContext: AudioContext }) {
         await init();
         audioNode.current = await createAudioNodeWithGeneratedParameterUI(audioContext, synthParameterControl.current!);
         audioNode.current.addOutputEventListener(handleOutputEvent);
-        audioNode.current!.connect(audioContext.destination);
+        toggleFreeverbInAudioGraph(freeverbEffectEnabled);
+    }
+
+    const loadFreeverbEffect = async () => {
+        const {
+            default: init,
+            createAudioNodeWithGeneratedParameterUI,
+        } = await import("../../assets/freeverb/freeverb");
+        await init();
+        effectNode.current = await createAudioNodeWithGeneratedParameterUI(audioContext, effectParameterControl.current!);
     }
 
     return (
@@ -95,6 +126,12 @@ function Synth({ audioContext }: { audioContext: AudioContext }) {
                 }
             </select>
             <div ref={synthParameterControl} />
+            <hr/>
+            <div>
+                Enable Freeverb
+                <input type="checkbox" checked={freeverbEffectEnabled} onChange={handleFreeverbCheckboxChange} />
+            </div>
+            <div ref={effectParameterControl} style={{ display: freeverbEffectEnabled ? "block" : "none" }} />   
         </>
     );
 }
