@@ -34,6 +34,7 @@ function Synth({ audioContext }: { audioContext: AudioContext }) {
         [audioContext]
     );
 
+    // the dynamic imports below are crucial to prevent vite from unintentionally removing seemingly unused functions, such as createWasmProcessor, during production build
     const synthModules = {
         "Oscillator": {
             importEsmodule: () => import("../../assets/oscillator/oscillator")
@@ -41,6 +42,12 @@ function Synth({ audioContext }: { audioContext: AudioContext }) {
         "SurgeSynthSaw": {
             importEsmodule: () => import("../../assets/surge-synth-saw-demo/surge_synth_saw_demo")
         },
+    };
+
+    const effectModules = {
+        "Freeverb": {
+            importEsmodule: () => import("../../assets/freeverb/freeverb")
+        }
     };
 
     const handleNoteOn = ({ key, velocity }: { key: number, velocity: number }) => {
@@ -108,10 +115,11 @@ function Synth({ audioContext }: { audioContext: AudioContext }) {
     }
 
     const loadFreeverbEffect = async () => {
+        const { importEsmodule } = effectModules["Freeverb"];
         const {
             default: init,
-            createAudioNodeWithGeneratedParameterUI,
-        } = await import("../../assets/freeverb/freeverb");
+            createAudioNodeWithGeneratedParameterUI
+        } = await importEsmodule();
         await init();
         effectNode.current = await createAudioNodeWithGeneratedParameterUI(audioContext, effectParameterControl.current!);
     }
