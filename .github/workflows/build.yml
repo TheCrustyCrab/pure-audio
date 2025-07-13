@@ -30,6 +30,12 @@ jobs:
                 cargo build --target wasm32-unknown-unknown --release
                 wasm-bindgen ../../../target/wasm32-unknown-unknown/release/midi_file_parser.wasm --target web --out-dir ../src/assets/midi-file-parser
 
+            - name: Build freeverb example
+              working-directory: examples/freeverb
+              run: |
+                cargo build --target wasm32-unknown-unknown --release
+                wasm-bindgen ../../target/wasm32-unknown-unknown/release/freeverb.wasm --target web --out-dir ../webdemo/src/assets/freeverb
+
             - name: Build oscillator example
               working-directory: examples/oscillator
               run: |
