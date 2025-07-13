@@ -1,5 +1,5 @@
 use std::{collections::VecDeque, marker::PhantomData};
-use pure_audio::{AutomationRate, Event, IntoProcessor, OutEvents, ParameterDescriptor, Processor};
+use pure_audio::{AutomationRate, Event, HostParameters, IntoProcessor, OutEvents, ParameterContext, ParameterDescriptor, Processor};
 use wasm_bindgen::prelude::*;
 use web_sys::AudioWorkletGlobalScope;
 use crate::{event::WasmOutEventDispatcher, PROCESSOR_BLOCK_LENGTH};
@@ -55,6 +55,10 @@ impl WasmProcessor {
         self.implementation.schedule_note_off(time, key, velocity);
     }
 
+    pub fn set_host_tempo(&mut self, tempo: f32) {
+        self.implementation.set_host_tempo(tempo);
+    }
+
     pub fn indicate_params_changed(&mut self) {
         self.implementation.indicate_params_changed();
     }
@@ -70,6 +74,7 @@ trait WasmProcessorImplementation: 'static {
     fn note_off(&mut self, key: u8, velocity: u8);
     fn schedule_note_on(&mut self, time: f64, key: u8, velocity: u8);
     fn schedule_note_off(&mut self, time: f64, key: u8, velocity: u8);
+    fn set_host_tempo(&mut self, tempo: f32);
     fn indicate_params_changed(&mut self);
 }
 
@@ -88,6 +93,7 @@ where
     outputs: [[[f32; PROCESSOR_BLOCK_LENGTH]; NUM_CHANNELS]; NUM_OUTPUTS],
     parameters: [u32; NUM_PARAMS],
     parameters_per_sample: [Option<[u32; PROCESSOR_BLOCK_LENGTH]>; NUM_PARAMS],
+    host_parameters: HostParameters,
     marker: PhantomData<(A, Params, S)>
 }
 
@@ -113,6 +119,9 @@ where
                     AutomationRate::K => None
                 }
             }),
+            // from wasm's perspective, it would've been easier to store host parameters with the other parameters, the space is reservered anyway
+            // but that approach would be less efficient for CLAP, where host parameters are available directly in the process call
+            host_parameters: HostParameters::new(0.0),
             marker: PhantomData
         }
     }
@@ -208,7 +217,8 @@ where
         
         let parameters_per_sample = self.parameters_per_sample.each_ref().map(|p| p.as_ref().map(|p| p.as_slice()));
         let out_events = OutEvents::new(&self.out_event_dispatcher);
-        self.processor.process(inputs, outputs, &self.parameters, &parameters_per_sample, &self.events, out_events);
+        let parameter_context = ParameterContext::new(&self.parameters, &parameters_per_sample, &self.host_parameters);
+        self.processor.process(inputs, outputs, parameter_context, &self.events, out_events);
         
         self.events.clear();
     }
@@ -229,6 +239,10 @@ where
 
     fn schedule_note_off(&mut self, time: f64, key: u8, velocity: u8) {
         self.scheduled_events.push_back((time, Event::NoteOff { port_index: 0, channel: 0, key, note_id: 0, velocity }));
+    }
+
+    fn set_host_tempo(&mut self, value: f32) {
+        self.host_parameters.tempo = value;
     }
 
     fn indicate_params_changed(&mut self) {

@@ -68,6 +68,15 @@ if (root.AudioWorkletNode === undefined) {
             });
         }
 
+        setHostTempo(value) {
+            this.port.postMessage({
+                type: "setHostTempo",
+                data: {
+                    value
+                }
+            });
+        }
+
         addOutputEventListener(callback) {
             this.outputEventListeners.push(callback);
         }

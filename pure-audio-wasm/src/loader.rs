@@ -83,7 +83,7 @@ where
            Ok(())
         }
         
-        for (index, &(ParameterDescriptor { name, default_value, min_value, max_value, kind }, ..)) in P::PARAM_DESCRIPTORS.iter().enumerate() {
+        for (index, (ParameterDescriptor { name, default_value, min_value, max_value, kind }, ..)) in P::local_param_descriptors_iter() {
             let paragraph = document.create_element("p")?;
             paragraph.set_text_content(Some(&format!("{name}:")));
             match kind {
@@ -187,9 +187,7 @@ where
             .join("\n");
 
     let process_copy_parameters_per_sample = 
-        P::PARAM_DESCRIPTORS
-            .iter()
-            .enumerate()
+        P::local_param_descriptors_iter()
             .filter(|(.., (.., automation_rate))| if let AutomationRate::A = automation_rate { true } else { false })
             .map(|(i, (desc, ..))| {
                 let name = desc.name;
@@ -215,10 +213,8 @@ where
             .join("\n");
 
     let (parameter_descriptors, parameter_copies): (Vec<_>, Vec<_>) = 
-        P::PARAM_DESCRIPTORS
-            .iter()
-            .enumerate()
-            .map(|(index, &(ParameterDescriptor { name, default_value, min_value, max_value, kind }, automation_rate))| {
+        P::local_param_descriptors_iter()
+            .map(|(index, (ParameterDescriptor { name, default_value, min_value, max_value, kind }, automation_rate))| {
                 (format!(
                     r#"{{
                         name: '{name}',
@@ -261,7 +257,15 @@ where
                         this.processor.schedule_note_on(msg.data.data.time, msg.data.data.key, msg.data.data.velocity);
                     }} else if (msg.data.type === "scheduleNoteOff") {{
                         this.processor.schedule_note_off(msg.data.data.time, msg.data.data.key, msg.data.data.velocity);
-                    }} else if (msg.data.type === "indicateParamsChanged") {{
+                    }} else if (msg.data.type === "setHostTempo") {{
+                        this.processor.set_host_tempo(msg.data.data.value);
+                        // we could trigger indicateParamsChanged for this too
+                        // but then we should support detecting changes in host parameters for CLAP too
+                        // which is currently not guaranteed to come out-of-the-box from a host application
+                        // it could be implemented in the bridge but processors shouldn't be forced to depend on such logic if they don't use host parameters
+                        // so for now: leave such change detection to the implementing processor
+                    }}
+                    else if (msg.data.type === "indicateParamsChanged") {{
                         this.processor.indicate_params_changed();
                     }} else if (msg.data.type === "requestStop") {{
                         this.stopRequested = true;
@@ -342,7 +346,7 @@ where
     ));
 
     let parameter_name_index_map = Map::new();
-    for (index, &(ParameterDescriptor { name, .. }, ..)) in P::PARAM_DESCRIPTORS.iter().enumerate() {
+    for (index, (ParameterDescriptor { name, .. }, ..)) in P::local_param_descriptors_iter() {
         parameter_name_index_map.set(&name.into(), &index.into());
     }
 

@@ -1,6 +1,6 @@
 use std::{array, ffi::{c_void, CStr}, slice, sync::atomic::Ordering};
-use clap_sys::{ext::{audio_ports::{clap_plugin_audio_ports, CLAP_EXT_AUDIO_PORTS}, note_ports::{clap_plugin_note_ports, CLAP_EXT_NOTE_PORTS}, params::{clap_plugin_params, CLAP_EXT_PARAMS}}, plugin::clap_plugin, process::{clap_process, clap_process_status, CLAP_PROCESS_CONTINUE}};
-use pure_audio::{IntoProcessor, OutEvents, Processor};
+use clap_sys::{events::clap_event_transport, ext::{audio_ports::{clap_plugin_audio_ports, CLAP_EXT_AUDIO_PORTS}, note_ports::{clap_plugin_note_ports, CLAP_EXT_NOTE_PORTS}, params::{clap_plugin_params, CLAP_EXT_PARAMS}}, plugin::clap_plugin, process::{clap_process, clap_process_status, CLAP_PROCESS_CONTINUE}};
+use pure_audio::{HostParameters, IntoProcessor, OutEvents, ParameterContext, Processor};
 use super::{event::ClapOutEventDispatcher, extensions::{audio_ports::AudioPortsExtension, note_ports::NotePortsExtension, params::ParamsExtension}, get_plugin_data, PluginWrapper};
 
 // bridge between unsafe CLAP API and inner Plugin
@@ -71,6 +71,9 @@ where
 
     // map events and parameters
     this.handle_input_events(process.in_events);
+    
+    // map transport (bpm, song position)
+    let clap_event_transport { tempo, .. } = &*process.transport;
 
     let frames_count = process.frames_count as usize;
 
@@ -101,7 +104,9 @@ where
     let parameters_per_sample = this.parameters_per_sample.as_ref().unwrap().each_ref().map(|p| p.as_ref().map(|p| p.as_slice()));
     let dispatcher = ClapOutEventDispatcher::new(process.out_events, process.frames_count);
     let out_events = OutEvents::new(&dispatcher);
-    this.processor.process(inputs, outputs, &parameters, &parameters_per_sample, &this.events, out_events);
+    let host_parameters = HostParameters::new(*tempo as f32);
+    let parameter_context = ParameterContext::new(&parameters, &parameters_per_sample, &host_parameters);
+    this.processor.process(inputs, outputs, parameter_context, &this.events, out_events);
 
     this.events.clear();
 

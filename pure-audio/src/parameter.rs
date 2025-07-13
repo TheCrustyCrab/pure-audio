@@ -69,6 +69,7 @@ pub trait FromParameterValues {
     fn value_to_text(value: f64, writer: &mut impl Write) -> bool;
 }
 
+// todo: disallow SamplePrecise for HostParameters
 impl<P: Parameter> FromParameterValues for SamplePrecise<'_, P> {
     const DESCRIPTOR: ParameterDescriptor = P::DESCRIPTOR;
     const AUTOMATION_RATE: AutomationRate = AutomationRate::A;
@@ -132,5 +133,121 @@ impl<P: Parameter> FromParameterValues for P {
     #[inline]
     fn value_to_text(value: f64, writer: &mut impl Write) -> bool {
         P::value_to_text(value, writer)
+    }
+}
+
+pub trait FromParameterContext {
+    const SOURCE_IS_HOST: bool;
+    const DESCRIPTOR: ParameterDescriptor;
+    const AUTOMATION_RATE: AutomationRate;
+    type Out<'a>: FromParameterContext;
+    fn from_parameter_context<'a>(context: ParameterContext<'a>, index: usize) -> Self::Out<'a>;
+    fn f64_to_value(d: f64) -> u32;
+    fn value_to_f64(value: u32) -> f64;
+    fn text_to_value(text: &str) -> Option<f64>;
+    fn value_to_text(value: f64, writer: &mut impl Write) -> bool;
+}
+
+#[derive(Clone, Copy)]
+pub struct ParameterContext<'a> {
+    parameter_single_values: &'a [u32],
+    parameter_per_sample_values: &'a [Option<&'a [u32]>],
+    host_parameters: &'a HostParameters
+}
+
+impl<'a> ParameterContext<'a> {
+    #[inline]
+    pub fn new(parameter_single_values: &'a [u32], parameter_per_sample_values: &'a [Option<&'a [u32]>], host_parameters: &'a HostParameters) -> Self {
+        Self {
+            parameter_single_values,
+            parameter_per_sample_values,
+            host_parameters
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct HostParameters {
+    pub tempo: f32
+    // todo: song position etc
+}
+
+impl HostParameters {
+    #[inline]
+    pub fn new(tempo: f32) -> Self {
+        Self { tempo }
+    }
+}
+
+pub struct Tempo(f32);
+
+impl FromParameterContext for Tempo {    
+    const SOURCE_IS_HOST: bool = true;
+    // won't be used for HostParameters
+    const DESCRIPTOR: ParameterDescriptor = ParameterDescriptor {
+        name: "n/a",
+        default_value: 0.0,
+        min_value: 0.0,
+        max_value: 0.0,
+        kind: ParameterKind::Bool,
+    };
+
+    const AUTOMATION_RATE: AutomationRate = AutomationRate::K;
+
+    type Out<'a> = Tempo;
+
+    #[inline]
+    fn from_parameter_context<'a>(context: ParameterContext<'a>, _index: usize) -> Self::Out<'a> {
+        Tempo(context.host_parameters.tempo)
+    }
+
+    // values don't matter but called during initialisation
+    fn f64_to_value(d: f64) -> u32 {
+        0
+    }
+
+    fn value_to_f64(value: u32) -> f64 {
+        0.0
+    }
+
+    fn text_to_value(text: &str) -> Option<f64> {
+        None
+    }
+
+    fn value_to_text(value: f64, writer: &mut impl Write) -> bool {
+        false
+    }
+}
+
+impl<F: FromParameterValues> FromParameterContext for F {
+    const SOURCE_IS_HOST: bool = false;
+    const DESCRIPTOR: ParameterDescriptor = F::DESCRIPTOR;
+    const AUTOMATION_RATE: AutomationRate = F::AUTOMATION_RATE;
+
+    type Out<'a> = F::Out<'a>;
+
+    #[inline]
+    fn from_parameter_context<'a>(context: ParameterContext<'a>, index: usize) -> Self::Out<'a> {
+        F::from_parameter_values(context.parameter_single_values, context.parameter_per_sample_values, index)
+    }
+
+    #[inline]
+    fn f64_to_value(d: f64) -> u32 {
+        F::f64_to_value(d)
+    }
+
+    #[inline]
+    fn value_to_f64(value: u32) -> f64 {
+        F::value_to_f64(value)
+    }
+
+    #[inline]
+    fn text_to_value(text: &str) -> Option<f64> {
+        F::text_to_value(text)
+    }
+
+    #[inline]
+    fn value_to_text(value: f64, writer: &mut impl Write) -> bool {
+        F::value_to_text(value, writer)
     }
 }

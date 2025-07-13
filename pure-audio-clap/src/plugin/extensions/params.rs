@@ -25,11 +25,7 @@ where
 }
 
 trait ParamsFunctions<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S> {
-    // Returns the number of parameters.
-    // [main-thread]
-    unsafe extern "C" fn params_count(_clap_plugin: *const clap_plugin) -> u32 {
-        NUM_PARAMS as u32
-    }
+    unsafe extern "C" fn params_count(_clap_plugin: *const clap_plugin) -> u32;
     unsafe extern "C" fn params_get_info(clap_plugin: *const clap_plugin, index: u32, info: *mut clap_param_info) -> bool;
     unsafe extern "C" fn params_get_value(clap_plugin: *const clap_plugin, id: u32, value: *mut f64) -> bool;
     unsafe extern "C" fn params_flush(clap_plugin: *const clap_plugin, in_events: *const clap_input_events, out_events: *const clap_output_events);
@@ -41,6 +37,13 @@ impl<P, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: u
 where
     P: 'static + IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>
 {
+    
+    // Returns the number of parameters.
+    // [main-thread]
+    unsafe extern "C" fn params_count(_clap_plugin: *const clap_plugin) -> u32 {
+        P::PARAMS_COUNT as u32
+    }
+
     // Copies the parameter's info to param_info.
     // Returns true on success.
     // [main-thread]
@@ -48,9 +51,10 @@ where
         if index as usize + 1 > NUM_PARAMS {
             false
         } else {
-            let (desc, ..) = P::PARAM_DESCRIPTORS[index as usize];
+            let (real_index, (desc, ..), ..) = P::get_local_param_descriptor(index as usize);
             let info = &mut *info;
-            info.id = index;
+            // it's crucial to assign the real index to the id, as the other param functions depend on it
+            info.id = real_index as u32;
             // todo: add to ParameterDescriptor if needed (specific to CLAP)
             info.flags = CLAP_PARAM_IS_AUTOMATABLE | CLAP_PARAM_IS_MODULATABLE;
             if let ParameterKind::Bool | ParameterKind::Enum(_) | ParameterKind::I32 | ParameterKind::U32 = desc.kind {

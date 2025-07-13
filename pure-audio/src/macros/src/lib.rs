@@ -85,7 +85,7 @@ pub fn impl_processor(ts: TokenStream) -> TokenStream {
             F: 'static + FnMut(A, #(#generic_idents),*) + FnMut(A::Out<'_>, #(#generic_idents ::Out<'_>),*),
             A: 'static + FromRawAudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, S>,
             #(
-                #generic_idents: 'static + FromParameterValues,
+                #generic_idents: 'static + FromParameterContext,
             )*
             S: 'static + State,
             {
@@ -99,13 +99,12 @@ pub fn impl_processor(ts: TokenStream) -> TokenStream {
                     &'a mut self,
                     inputs: [[&'a [f32]; NUM_CHANNELS]; NUM_INPUTS],
                     outputs: [[&'a mut [f32]; NUM_CHANNELS]; NUM_OUTPUTS],
-                    parameter_single_values: &'a [u32; #num_params],
-                    parameter_per_sample_values: &'a [Option<&'a [u32]>; #num_params],
+                    parameter_context: ParameterContext<'a>,
                     events: &'a [Event],
                     out_events: OutEvents<'a>
                 ) {
                     #(
-                        let #generic_idents = #generic_idents::from_parameter_values(parameter_single_values, parameter_per_sample_values, #indices);
+                        let #generic_idents = #generic_idents::from_parameter_context(parameter_context, #indices);
                     )*
                     let data = A::from_raw_audio_data(inputs, outputs, events, out_events, &mut self.state);
                     (self.f)(data, #(#generic_idents),*);
@@ -125,14 +124,22 @@ pub fn impl_processor(ts: TokenStream) -> TokenStream {
             F: 'static + FnMut(A, #(#generic_idents,)*) + FnMut(A::Out<'_>, #(#generic_idents ::Out<'_>),*),
             A: 'static + FromRawAudioData<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, S>,
             #(
-                #generic_idents: 'static + FromParameterValues,
+                #generic_idents: 'static + FromParameterContext,
             )*
             S: 'static + State,
             {
                 type Out = ProcessorWrapper<F, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, #num_params, A, (#(#generic_idents,)*), S>;
+                const PARAMS_COUNT: usize = 0 #(
+                        + (if #generic_idents::SOURCE_IS_HOST { 0 } else { 1 })
+                    )*;
                 const PARAM_DESCRIPTORS: [(ParameterDescriptor, AutomationRate); #num_params] = [
                     #(
                         (#generic_idents::DESCRIPTOR, #generic_idents::AUTOMATION_RATE)
+                    ),*
+                ];
+                const HOST_PARAM_FLAGS: [bool; #num_params] = [
+                    #(
+                        #generic_idents::SOURCE_IS_HOST
                     ),*
                 ];
 
