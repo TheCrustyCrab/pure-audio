@@ -2,14 +2,14 @@ import { ChangeEvent, useMemo, useRef, useState } from "react";
 import { default as initMidiFileParser, midiToSimpleTracks, SimpleMidiEvent, SimpleMidiTrack } from "../../assets/midi-file-parser/midi_file_parser";
 import useWasm from "../../hooks/useWasm";
 import useInterval from "../../hooks/useInterval";
+import useEventBus from "../../hooks/useEventBus";
 
 interface MidiPlayerProps {
     audioContext?: AudioContext | null, 
-    midiFile: { name: string, data: Uint8Array } | undefined,
-    onSchedule: (event: SimpleMidiEvent) => void
+    midiFile: { name: string, data: Uint8Array } | undefined
 }
 
-function MidiPlayer({ audioContext, midiFile, onSchedule }: MidiPlayerProps) {
+function MidiPlayer({ audioContext, midiFile }: MidiPlayerProps) {
     const [selectedMidiTrackIndex, setSelectedMidiTrackIndex] = useState<number>();
     const loadedMidiTracks = useMemo(() => {
         let midiTracks: SimpleMidiTrack[] = [];
@@ -44,6 +44,7 @@ function MidiPlayer({ audioContext, midiFile, onSchedule }: MidiPlayerProps) {
     const [elapsedTimeInBeats, setElapsedTimeInBeats] = useState(0);
     const interval = 25;
     const scheduleAheadTime = 0.1;
+    const eventBus = useEventBus();
 
     const midiFileParserLoaded = useWasm(initMidiFileParser);
 
@@ -60,7 +61,9 @@ function MidiPlayer({ audioContext, midiFile, onSchedule }: MidiPlayerProps) {
 
         while (nextEvent.current !== null && nextEvent.current.time < audioContext!.currentTime + scheduleAheadTime) {
             if (pausingTime === null || nextEvent.current.type === "off") {
-                onSchedule(nextEvent.current);
+                const { time, key, velocity } = nextEvent.current;
+                const type = nextEvent.current.type === "on" ? "noteScheduleOn" : "noteScheduleOff";
+                eventBus.publish(type, { time, key, velocity });
             }
 
             if (nextEvent.current.type === "on") {
@@ -119,7 +122,7 @@ function MidiPlayer({ audioContext, midiFile, onSchedule }: MidiPlayerProps) {
         setPlayMidiStartTime(null);
 
         scheduledNotes.current.forEach(note => {
-            onSchedule({ key: note, time: audioContext!.currentTime, type: "off", velocity: 0 });
+            eventBus.publish("noteScheduleOff", { time: audioContext!.currentTime, key: note, velocity: 0 });
         });
         scheduledNotes.current.clear();
 

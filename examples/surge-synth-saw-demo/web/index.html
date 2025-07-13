@@ -23,7 +23,7 @@
 
             await init();
             const ctx = new AudioContext();
-            const synth = await createAudioNodeWithGeneratedParameterUI(ctx, "parameters");
+            const synth = await createAudioNodeWithGeneratedParameterUI(ctx, document.getElementById("parameters"));
             window.synth = synth;
             synth.addOutputEventListener(console.log);
             synth.connect(ctx.destination);

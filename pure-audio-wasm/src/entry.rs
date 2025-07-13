@@ -6,7 +6,8 @@ macro_rules! pure_audio_wasm_entry {
             use pure_audio_wasm::wasm_bindgen;
             use pure_audio_wasm::wasm_bindgen::JsValue;
             use pure_audio_wasm::wasm_bindgen_futures;
-            use pure_audio_wasm::{wasm_bindgen::{prelude::wasm_bindgen, UnwrapThrowExt}, AudioContext, PureAudioWorkletNode};
+            use pure_audio_wasm::{wasm_bindgen::{prelude::wasm_bindgen, UnwrapThrowExt}, PureAudioWorkletNode};
+            use pure_audio_wasm::web_sys::{AudioContext, Element};
 
             #[wasm_bindgen(js_name = createWasmProcessor)]
             pub fn create_wasm_processor(sample_rate: f32, output_event_callback: js_sys::Function) -> pure_audio_wasm::WasmProcessor {
@@ -19,8 +20,8 @@ macro_rules! pure_audio_wasm_entry {
             }
             
             #[wasm_bindgen(js_name = createAudioNodeWithGeneratedParameterUI)]
-            pub async fn create_node_with_generated_parameter_ui(ctx: &AudioContext, #[wasm_bindgen(js_name = divId)] div_id: &str) -> PureAudioWorkletNode {
-                pure_audio_wasm::register_and_create_node($name, $process, ctx, Some(div_id)).await.unwrap_throw()
+            pub async fn create_node_with_generated_parameter_ui(ctx: &AudioContext, #[wasm_bindgen(js_name = control)] control: &Element) -> PureAudioWorkletNode {
+                pure_audio_wasm::register_and_create_node($name, $process, ctx, Some(control)).await.unwrap_throw()
             }
 
             #[wasm_bindgen(js_name = createRawWasmParameterConverter)]

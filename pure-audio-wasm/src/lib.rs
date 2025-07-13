@@ -16,7 +16,7 @@ use pure_audio::IntoProcessor;
 pub use wasm_bindgen;
 use wasm_bindgen::prelude::*;
 pub use wasm_bindgen_futures;
-pub use web_sys::AudioContext;
+pub use web_sys;
 
 // https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Using_AudioWorklet#the_input_and_output_lists
 // currently fixed size

@@ -1,5 +1,6 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { Octave } from './octave';
+import useEventBus from '../../hooks/useEventBus';
 
 enum MidiStatus {
     NoteOff = 0b1000,
@@ -8,10 +9,7 @@ enum MidiStatus {
 
 interface KeyboardProps {
     minOctave: number,
-    octaveCount: number,
-    scheduledActiveNotes: number[],
-    onNoteOn: (key: number, velocity: number) => void,
-    onNoteOff: (key: number, velocity: number) => void
+    octaveCount: number
 }
 
 enum PointerChordMode {
@@ -30,7 +28,7 @@ const chordKeyOffsets: { [key in PointerChordMode]: Array<number> } = {
     [PointerChordMode.Sus4]: [0, 5, 7]
 }
 
-function Keyboard({ minOctave, octaveCount, scheduledActiveNotes, onNoteOn, onNoteOff }: KeyboardProps) {
+function Keyboard({ minOctave, octaveCount }: KeyboardProps) {
     const midiAccess = useRef<MIDIAccess>(null);
     const midiInputs = useRef<MIDIInput[]>([]);
     const [midiInputNames, setMidiInputNames] = useState<string[]>([]);
@@ -38,7 +36,7 @@ function Keyboard({ minOctave, octaveCount, scheduledActiveNotes, onNoteOn, onNo
     const [pointerChordMode, setPointerChordMode] = useState<PointerChordMode>(PointerChordMode.Note);
     const pointerActiveKey = useRef<number>(null);
     const [activeNotes, setActiveNotes] = useState<number[]>([]);
-    const allActiveNotes = useMemo(() => [...activeNotes, ...scheduledActiveNotes], [activeNotes, scheduledActiveNotes]);
+    const eventBus = useEventBus();
 
     useEffect(() => {
         // initial activation
@@ -49,9 +47,13 @@ function Keyboard({ minOctave, octaveCount, scheduledActiveNotes, onNoteOn, onNo
         };
 
         initMidi();
+        eventBus.subscribe("noteScheduledOffTriggered", handleNoteScheduledOffTriggered);
+        eventBus.subscribe("noteScheduledOnTriggered", handleNoteScheduledOnTriggered);
 
         return () => {
             midiAccess.current?.removeEventListener("statechange", handleMidiStateChange);
+            eventBus.unsubscribe("noteScheduledOffTriggered", handleNoteScheduledOffTriggered);
+            eventBus.unsubscribe("noteScheduledOnTriggered", handleNoteScheduledOnTriggered);
         };
     }, []);
 
@@ -63,7 +65,7 @@ function Keyboard({ minOctave, octaveCount, scheduledActiveNotes, onNoteOn, onNo
             document.body.removeEventListener("pointerup", handlePointerUpOrCancel);
             document.body.removeEventListener("pointercancel", handlePointerUpOrCancel);
         };
-    }, [minOctave, octaveCount, activeNotes, onNoteOn, onNoteOff]);
+    }, [minOctave, octaveCount, activeNotes]);
 
     const handleMidiStateChange = useCallback(function (this: MIDIAccess) {
         const inputs = [...this.inputs.values()];
@@ -107,13 +109,13 @@ function Keyboard({ minOctave, octaveCount, scheduledActiveNotes, onNoteOn, onNo
                 const key = data1;
                 const velocity = data2;
                 setActiveNotes(current => current.filter(activeNote => activeNote !== key));
-                onNoteOff(key, velocity);
+                eventBus.publish("noteOff", { key, velocity });
                 console.log(`Midi note off ${key} with velocity ${velocity}`);
             } else if (status >> 4 === MidiStatus.NoteOn) {
                 const key = data1;
                 const velocity = data2;
                 setActiveNotes(current => [...current, key]);
-                onNoteOn(key, velocity);
+                eventBus.publish("noteOn", { key, velocity });
                 console.log(`Midi note on ${key} with velocity ${velocity}`);
             }
         }
@@ -125,13 +127,15 @@ function Keyboard({ minOctave, octaveCount, scheduledActiveNotes, onNoteOn, onNo
         const keyOffsets = chordKeyOffsets[pointerChordMode];
         const keys = keyOffsets.map(offset => key + offset);
         setActiveNotes([...activeNotes, ...keys]);
-        keys.forEach(key => onNoteOn(key, 127));
+        keys.forEach(key => eventBus.publish("noteOn", { key, velocity: 127 }));
     };
 
     const handlePointerUpOrCancel = (_evt: PointerEvent) => {
         document.body.removeEventListener("pointermove", handlePointerMove);
-        setActiveNotes(currentActiveNodes => {
-            currentActiveNodes.forEach(activeNode => onNoteOff(activeNode, 127));
+        setActiveNotes(currentActiveNotes => {
+            currentActiveNotes.forEach(activeNote => {
+                eventBus.publish("noteOff", { key: activeNote, velocity: 127 })
+            });
             return [];
         });
     };
@@ -150,16 +154,24 @@ function Keyboard({ minOctave, octaveCount, scheduledActiveNotes, onNoteOn, onNo
         const keyOffsets = chordKeyOffsets[pointerChordMode];
         const oldKeys = keyOffsets.map(offset => pointerActiveKey.current! + offset);
         oldKeys.forEach(oldKey => {
-            onNoteOff(oldKey, 127);
+            eventBus.publish("noteOff", { key: oldKey, velocity: 127 })
         });
 
         const newKeys = keyOffsets.map(offset => newKeyNumber + offset);
         newKeys.forEach(newKey => {
-            onNoteOn(newKey, 127);
+            eventBus.publish("noteOn", { key: newKey, velocity: 127 })
         });
         setActiveNotes(newKeys);
         pointerActiveKey.current = newKeyNumber;
     }, [pointerChordMode]);
+
+    const handleNoteScheduledOffTriggered = ({ key }: { key: number }) => {
+        setActiveNotes(current => current.filter(activeNote => activeNote !== key));
+    }
+
+    const handleNoteScheduledOnTriggered = ({ key }: { key: number }) => {
+        setActiveNotes(current => [...current, key]);
+    }
 
     return (
         <>
@@ -184,7 +196,7 @@ function Keyboard({ minOctave, octaveCount, scheduledActiveNotes, onNoteOn, onNo
             {
                 [...Array(octaveCount)].map((_, i) => {
                     const octaveIndex = i + minOctave;
-                    return <Octave key={octaveIndex} index={octaveIndex} onNoteOn={handleNoteOn} activeNotes={allActiveNotes} />;
+                    return <Octave key={octaveIndex} index={octaveIndex} onNoteOn={handleNoteOn} activeNotes={activeNotes} />;
                 })
             }
         </>

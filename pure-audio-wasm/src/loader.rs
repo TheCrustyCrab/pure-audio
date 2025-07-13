@@ -3,12 +3,12 @@ use js_sys::{Array, Map, Object, Reflect};
 use pure_audio::{AutomationRate, IntoProcessor, ParameterDescriptor, ParameterKind};
 use wasm_bindgen::{prelude::Closure, JsCast, JsValue, UnwrapThrowExt};
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{console::log_1, window, AudioContext, AudioParam, AudioWorkletNodeOptions, Blob, BlobPropertyBag, ChannelCountMode, HtmlInputElement, HtmlLabelElement, MessagePort, Url};
+use web_sys::{console::log_1, window, AudioContext, AudioParam, AudioWorkletNodeOptions, Blob, BlobPropertyBag, ChannelCountMode, Element, HtmlInputElement, HtmlLabelElement, MessagePort, Url};
 
 const AUDIO_CONTEXT_REGISTERED_MODULES_FIELD_NAME: &'static str = "registeredModules";
 
 pub async fn register_and_create_node<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S, P>(name: &str, 
-    process: P, ctx: &AudioContext, generate_parameter_ui_div_id: Option<&str>)
+    process: P, ctx: &AudioContext, generate_parameter_ui_control: Option<&Element>)
 -> Result<PureAudioWorkletNode, JsValue>
 where
     P: IntoProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>
@@ -31,10 +31,10 @@ where
 
     let audio_worklet_node = create_node(name, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, ctx, process)?;
 
-    if let Some(div_id) = generate_parameter_ui_div_id {
+    if let Some(control) = generate_parameter_ui_control {
+        control.set_inner_html("");
         let window = window().unwrap();
         let document = window.document().unwrap();
-        let control = document.create_element("div")?;
         let param_map = audio_worklet_node.parameters().unwrap();
         let port = audio_worklet_node.port().unwrap();
 
@@ -137,9 +137,6 @@ where
             }
             control.append_child(&paragraph)?;
         }
-        let div = document.get_element_by_id(div_id).ok_or(format!("div #{div_id} not found"))?;
-        div.set_inner_html("");
-        div.append_child(&control)?;
     }
 
     Ok(audio_worklet_node)

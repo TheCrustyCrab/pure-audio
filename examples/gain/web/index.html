@@ -13,7 +13,7 @@
 
                 await init();
                 const ctx = new AudioContext();
-                const gain = await createAudioNodeWithGeneratedParameterUI(ctx, "parameters");
+                const gain = await createAudioNodeWithGeneratedParameterUI(ctx, document.getElementById("parameters"));
                 const tone = new OscillatorNode(ctx, {
                     frequency: 440
                 });
