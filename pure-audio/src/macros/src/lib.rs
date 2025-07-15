@@ -129,17 +129,12 @@ pub fn impl_processor(ts: TokenStream) -> TokenStream {
             S: 'static + State,
             {
                 type Out = ProcessorWrapper<F, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, #num_params, A, (#(#generic_idents,)*), S>;
-                const PARAMS_COUNT: usize = 0 #(
-                        + (if #generic_idents::SOURCE_IS_HOST { 0 } else { 1 })
+                const LOCAL_PARAM_COUNT: usize = 0 #(
+                        + (if let ParameterDescriptor::Host = #generic_idents::DESCRIPTOR { 0 } else { 1 })
                     )*;
                 const PARAM_DESCRIPTORS: [(ParameterDescriptor, AutomationRate); #num_params] = [
                     #(
                         (#generic_idents::DESCRIPTOR, #generic_idents::AUTOMATION_RATE)
-                    ),*
-                ];
-                const HOST_PARAM_FLAGS: [bool; #num_params] = [
-                    #(
-                        #generic_idents::SOURCE_IS_HOST
                     ),*
                 ];
 
@@ -149,12 +144,12 @@ pub fn impl_processor(ts: TokenStream) -> TokenStream {
                     ProcessorWrapper::new(self, S::default())
                 }
 
-                fn parameter_f64_to_value(index: usize, d: f64) -> u32 {
-                    ([#(#generic_idents::f64_to_value),*] as [fn(f64) -> u32; #num_params])[index](d)
+                fn parameter_f64_to_bits(index: usize, d: f64) -> u32 {
+                    ([#(#generic_idents::f64_to_bits),*] as [fn(f64) -> u32; #num_params])[index](d)
                 }
 
-                fn parameter_value_to_f64(index: usize, value: u32) -> f64 {
-                    ([#(#generic_idents::value_to_f64),*] as [fn(u32) -> f64; #num_params])[index](value)
+                fn parameter_bits_to_f64(index: usize, value: u32) -> f64 {
+                    ([#(#generic_idents::bits_to_f64),*] as [fn(u32) -> f64; #num_params])[index](value)
                 }
 
                 fn parameter_text_to_value(index: usize, text: &str) -> Option<f64> {
@@ -508,21 +503,21 @@ fn parameter_impl(attr: TokenStream, input: TokenStream) -> Result<TokenStream, 
                 SupportedNewType::U32 => quote! { pure_audio::ParameterKind::U32 }
             };
 
-            let from_parameter = match new_type {
+            let from_bits = match new_type {
                 SupportedNewType::Bool => quote! { Self(value == 1) },
                 SupportedNewType::F32 => quote! { Self(f32::from_bits(value)) },
                 SupportedNewType::I32 => quote! { unsafe { Self(std::mem::transmute(value)) } },
                 SupportedNewType::U32 => quote! { Self(value) }
             };
 
-            let f64_to_value = match new_type {
+            let f64_to_bits = match new_type {
                 SupportedNewType::Bool => quote! { d as u32 },
                 SupportedNewType::F32 => quote! { (d as f32).to_bits() },
                 SupportedNewType::I32 => quote! { unsafe { std::mem::transmute(d as i32) } },
                 SupportedNewType::U32 => quote! { d as u32 }
             };
 
-            let value_to_f64 = match new_type {
+            let bits_to_f64 = match new_type {
                 SupportedNewType::Bool => quote! { value as f64 },
                 SupportedNewType::F32 => quote! { f32::from_bits(value) as f64 },
                 SupportedNewType::I32 => quote! { unsafe { std::mem::transmute::<u32, i32>(value) as f64 } },
@@ -540,7 +535,7 @@ fn parameter_impl(attr: TokenStream, input: TokenStream) -> Result<TokenStream, 
                 #s
     
                 impl pure_audio::Parameter for #struct_name {
-                    const DESCRIPTOR: pure_audio::ParameterDescriptor = pure_audio::ParameterDescriptor {
+                    const DESCRIPTOR: pure_audio::LocalParameterDescriptor = pure_audio::LocalParameterDescriptor {
                         name: #name,
                         default_value: #default_value,
                         min_value: #min_value,
@@ -549,18 +544,18 @@ fn parameter_impl(attr: TokenStream, input: TokenStream) -> Result<TokenStream, 
                     };
                     
                     #[inline]
-                    fn from_parameter(value: u32) -> Self {
-                        #from_parameter
+                    fn from_bits(value: u32) -> Self {
+                        #from_bits
                     }
 
                     #[inline]
-                    fn f64_to_value(d: f64) -> u32 {
-                        #f64_to_value
+                    fn f64_to_bits(d: f64) -> u32 {
+                        #f64_to_bits
                     }
                     
                     #[inline]
-                    fn value_to_f64(value: u32) -> f64 {
-                        #value_to_f64
+                    fn bits_to_f64(value: u32) -> f64 {
+                        #bits_to_f64
                     }
                     
                     #text_to_value
@@ -652,7 +647,7 @@ fn parameter_impl(attr: TokenStream, input: TokenStream) -> Result<TokenStream, 
                 #e
     
                 impl pure_audio::Parameter for #enum_name {
-                    const DESCRIPTOR: pure_audio::ParameterDescriptor = pure_audio::ParameterDescriptor {
+                    const DESCRIPTOR: pure_audio::LocalParameterDescriptor = pure_audio::LocalParameterDescriptor {
                         name: #name,
                         default_value: #default_value,
                         min_value: #min_value,
@@ -663,17 +658,17 @@ fn parameter_impl(attr: TokenStream, input: TokenStream) -> Result<TokenStream, 
                     };
                     
                     #[inline]
-                    fn from_parameter(value: u32) -> Self {
+                    fn from_bits(value: u32) -> Self {
                         unsafe { core::mem::transmute(value) }
                     }
 
                     #[inline]
-                    fn f64_to_value(d: f64) -> u32 {
+                    fn f64_to_bits(d: f64) -> u32 {
                         d as u32
                     }
                     
                     #[inline]
-                    fn value_to_f64(value: u32) -> f64 {
+                    fn bits_to_f64(value: u32) -> f64 {
                         value as f64
                     }
                     

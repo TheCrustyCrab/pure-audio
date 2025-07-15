@@ -25,7 +25,22 @@ pub enum ParameterKind {
 }
 
 #[derive(Copy, Clone)]
-pub struct ParameterDescriptor {
+pub enum ParameterDescriptor {
+    Local(LocalParameterDescriptor),
+    Host
+}
+
+impl ParameterDescriptor {
+    pub fn default_value(&self) -> f32 {
+        match self {
+            ParameterDescriptor::Local(local_parameter_descriptor) => local_parameter_descriptor.default_value,
+            ParameterDescriptor::Host => 0.0,
+        }
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct LocalParameterDescriptor {
     pub name: &'static str,
     pub default_value: f32,
     pub min_value: f32,
@@ -34,10 +49,10 @@ pub struct ParameterDescriptor {
 }
 
 pub trait Parameter {
-    const DESCRIPTOR: ParameterDescriptor;
-    fn from_parameter(value: u32) -> Self;
-    fn f64_to_value(d: f64) -> u32;
-    fn value_to_f64(value: u32) -> f64;
+    const DESCRIPTOR: LocalParameterDescriptor;
+    fn from_bits(value: u32) -> Self;
+    fn f64_to_bits(d: f64) -> u32;
+    fn bits_to_f64(value: u32) -> f64;
     fn text_to_value(text: &str) -> Option<f64> {
         text.parse::<f64>().ok()
     }
@@ -58,38 +73,38 @@ impl<P: Parameter> SamplePrecise<'_, P> {
     }
 }
 
-pub trait FromParameterValues {
-    const DESCRIPTOR: ParameterDescriptor;
+pub trait FromParameterBits {
+    const DESCRIPTOR: LocalParameterDescriptor;
     const AUTOMATION_RATE: AutomationRate;
-    type Out<'a>: FromParameterValues;
-    fn from_parameter_values<'a>(single: &'a [u32], per_sample: &'a [Option<&[u32]>], index: usize) -> Self::Out<'a>;
-    fn f64_to_value(d: f64) -> u32;
-    fn value_to_f64(value: u32) -> f64;
+    type Out<'a>: FromParameterBits;
+    fn from_parameter_bits<'a>(single: &'a [u32], per_sample: &'a [Option<&[u32]>], index: usize) -> Self::Out<'a>;
+    fn f64_to_bits(d: f64) -> u32;
+    fn bits_to_f64(value: u32) -> f64;
     fn text_to_value(text: &str) -> Option<f64>;
     fn value_to_text(value: f64, writer: &mut impl Write) -> bool;
 }
 
 // todo: disallow SamplePrecise for HostParameters
-impl<P: Parameter> FromParameterValues for SamplePrecise<'_, P> {
-    const DESCRIPTOR: ParameterDescriptor = P::DESCRIPTOR;
+impl<P: Parameter> FromParameterBits for SamplePrecise<'_, P> {
+    const DESCRIPTOR: LocalParameterDescriptor = P::DESCRIPTOR;
     const AUTOMATION_RATE: AutomationRate = AutomationRate::A;
 
     type Out<'a> = SamplePrecise<'a, P>;
 
     #[inline]
-    fn from_parameter_values<'a>(_single: &'a [u32], per_sample: &'a [Option<&[u32]>], index: usize) -> Self::Out<'a> {
+    fn from_parameter_bits<'a>(_single: &'a [u32], per_sample: &'a [Option<&[u32]>], index: usize) -> Self::Out<'a> {
         let values = per_sample[index].unwrap();
         SamplePrecise { values, marker: PhantomData }
     }
     
     #[inline]
-    fn f64_to_value(d: f64) -> u32 {
-        P::f64_to_value(d)
+    fn f64_to_bits(d: f64) -> u32 {
+        P::f64_to_bits(d)
     }
 
     #[inline]
-    fn value_to_f64(value: u32) -> f64 {
-        P::value_to_f64(value)
+    fn bits_to_f64(value: u32) -> f64 {
+        P::bits_to_f64(value)
     }
 
     #[inline]
@@ -103,26 +118,26 @@ impl<P: Parameter> FromParameterValues for SamplePrecise<'_, P> {
     }
 }
 
-impl<P: Parameter> FromParameterValues for P {
-    const DESCRIPTOR: ParameterDescriptor = P::DESCRIPTOR;
+impl<P: Parameter> FromParameterBits for P {
+    const DESCRIPTOR: LocalParameterDescriptor = P::DESCRIPTOR;
     const AUTOMATION_RATE: AutomationRate = AutomationRate::K;
 
     type Out<'a> = P;
 
     #[inline]
-    fn from_parameter_values<'a>(single: &'a [u32], _per_sample: &'a [Option<&[u32]>], index: usize) -> Self::Out<'a> {
+    fn from_parameter_bits<'a>(single: &'a [u32], _per_sample: &'a [Option<&[u32]>], index: usize) -> Self::Out<'a> {
         let value = single[index];
-        P::from_parameter(value)
+        P::from_bits(value)
     }
     
     #[inline]
-    fn f64_to_value(d: f64) -> u32 {
-        P::f64_to_value(d)
+    fn f64_to_bits(d: f64) -> u32 {
+        P::f64_to_bits(d)
     }
 
     #[inline]
-    fn value_to_f64(value: u32) -> f64 {
-        P::value_to_f64(value)
+    fn bits_to_f64(value: u32) -> f64 {
+        P::bits_to_f64(value)
     }
 
     #[inline]
@@ -137,13 +152,12 @@ impl<P: Parameter> FromParameterValues for P {
 }
 
 pub trait FromParameterContext {
-    const SOURCE_IS_HOST: bool;
     const DESCRIPTOR: ParameterDescriptor;
     const AUTOMATION_RATE: AutomationRate;
     type Out<'a>: FromParameterContext;
     fn from_parameter_context<'a>(context: ParameterContext<'a>, index: usize) -> Self::Out<'a>;
-    fn f64_to_value(d: f64) -> u32;
-    fn value_to_f64(value: u32) -> f64;
+    fn f64_to_bits(d: f64) -> u32;
+    fn bits_to_f64(value: u32) -> f64;
     fn text_to_value(text: &str) -> Option<f64>;
     fn value_to_text(value: f64, writer: &mut impl Write) -> bool;
 }
@@ -181,16 +195,8 @@ impl HostParameters {
 
 pub struct Tempo(f32);
 
-impl FromParameterContext for Tempo {    
-    const SOURCE_IS_HOST: bool = true;
-    // won't be used for HostParameters
-    const DESCRIPTOR: ParameterDescriptor = ParameterDescriptor {
-        name: "n/a",
-        default_value: 0.0,
-        min_value: 0.0,
-        max_value: 0.0,
-        kind: ParameterKind::Bool,
-    };
+impl FromParameterContext for Tempo {
+    const DESCRIPTOR: ParameterDescriptor = ParameterDescriptor::Host;
 
     const AUTOMATION_RATE: AutomationRate = AutomationRate::K;
 
@@ -202,43 +208,42 @@ impl FromParameterContext for Tempo {
     }
 
     // values don't matter but called during initialisation
-    fn f64_to_value(d: f64) -> u32 {
+    fn f64_to_bits(_d: f64) -> u32 {
         0
     }
 
-    fn value_to_f64(value: u32) -> f64 {
+    fn bits_to_f64(_value: u32) -> f64 {
         0.0
     }
 
-    fn text_to_value(text: &str) -> Option<f64> {
+    fn text_to_value(_text: &str) -> Option<f64> {
         None
     }
 
-    fn value_to_text(value: f64, writer: &mut impl Write) -> bool {
+    fn value_to_text(_value: f64, _writer: &mut impl Write) -> bool {
         false
     }
 }
 
-impl<F: FromParameterValues> FromParameterContext for F {
-    const SOURCE_IS_HOST: bool = false;
-    const DESCRIPTOR: ParameterDescriptor = F::DESCRIPTOR;
+impl<F: FromParameterBits> FromParameterContext for F {
+    const DESCRIPTOR: ParameterDescriptor = ParameterDescriptor::Local(F::DESCRIPTOR);
     const AUTOMATION_RATE: AutomationRate = F::AUTOMATION_RATE;
 
     type Out<'a> = F::Out<'a>;
 
     #[inline]
     fn from_parameter_context<'a>(context: ParameterContext<'a>, index: usize) -> Self::Out<'a> {
-        F::from_parameter_values(context.parameter_single_values, context.parameter_per_sample_values, index)
+        F::from_parameter_bits(context.parameter_single_values, context.parameter_per_sample_values, index)
     }
 
     #[inline]
-    fn f64_to_value(d: f64) -> u32 {
-        F::f64_to_value(d)
+    fn f64_to_bits(d: f64) -> u32 {
+        F::f64_to_bits(d)
     }
 
     #[inline]
-    fn value_to_f64(value: u32) -> f64 {
-        F::value_to_f64(value)
+    fn bits_to_f64(value: u32) -> f64 {
+        F::bits_to_f64(value)
     }
 
     #[inline]

@@ -41,7 +41,7 @@ where
     // Returns the number of parameters.
     // [main-thread]
     unsafe extern "C" fn params_count(_clap_plugin: *const clap_plugin) -> u32 {
-        P::PARAMS_COUNT as u32
+        P::LOCAL_PARAM_COUNT as u32
     }
 
     // Copies the parameter's info to param_info.
@@ -82,7 +82,7 @@ where
     unsafe extern "C" fn params_get_value(clap_plugin: *const clap_plugin, id: u32, value: *mut f64) -> bool {
         let plugin = get_plugin_data::<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>(clap_plugin);
         let index = id as usize;
-        *value = P::parameter_value_to_f64(index, plugin.parameters[index].load(Ordering::Relaxed));
+        *value = P::parameter_bits_to_f64(index, plugin.parameters[index].load(Ordering::Relaxed));
         
         true
     }

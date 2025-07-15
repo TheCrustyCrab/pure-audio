@@ -1,6 +1,6 @@
 use crate::{es_module::{ImportMeta, IMPORT_META}, PureAudioWorkletNode, parameter::WasmParameterConverter, PROCESSOR_BLOCK_LENGTH};
 use js_sys::{Array, Map, Object, Reflect};
-use pure_audio::{AutomationRate, IntoProcessor, ParameterDescriptor, ParameterKind};
+use pure_audio::{AutomationRate, IntoProcessor, LocalParameterDescriptor, ParameterKind};
 use wasm_bindgen::{prelude::Closure, JsCast, JsValue, UnwrapThrowExt};
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{console::log_1, window, AudioContext, AudioParam, AudioWorkletNodeOptions, Blob, BlobPropertyBag, ChannelCountMode, Element, HtmlInputElement, HtmlLabelElement, MessagePort, Url};
@@ -83,7 +83,7 @@ where
            Ok(())
         }
         
-        for (index, (ParameterDescriptor { name, default_value, min_value, max_value, kind }, ..)) in P::local_param_descriptors_iter() {
+        for (index, (LocalParameterDescriptor { name, default_value, min_value, max_value, kind }, ..)) in P::local_param_descriptors_iter() {
             let paragraph = document.create_element("p")?;
             paragraph.set_text_content(Some(&format!("{name}:")));
             match kind {
@@ -214,7 +214,7 @@ where
 
     let (parameter_descriptors, parameter_copies): (Vec<_>, Vec<_>) = 
         P::local_param_descriptors_iter()
-            .map(|(index, (ParameterDescriptor { name, default_value, min_value, max_value, kind }, automation_rate))| {
+            .map(|(index, (LocalParameterDescriptor { name, default_value, min_value, max_value, kind }, automation_rate))| {
                 (format!(
                     r#"{{
                         name: '{name}',
@@ -346,7 +346,7 @@ where
     ));
 
     let parameter_name_index_map = Map::new();
-    for (index, (ParameterDescriptor { name, .. }, ..)) in P::local_param_descriptors_iter() {
+    for (index, (LocalParameterDescriptor { name, .. }, ..)) in P::local_param_descriptors_iter() {
         parameter_name_index_map.set(&name.into(), &index.into());
     }
 

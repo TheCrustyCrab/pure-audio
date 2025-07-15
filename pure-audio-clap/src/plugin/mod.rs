@@ -28,7 +28,7 @@ where
 {
     pub fn new(processor: P) -> Self {
         let initial_parameters = array::from_fn(|param_index| {
-            AtomicU32::new(P::parameter_f64_to_value(param_index, P::PARAM_DESCRIPTORS[param_index].0.default_value as f64))
+            AtomicU32::new(P::parameter_f64_to_bits(param_index, P::PARAM_DESCRIPTORS[param_index].0.default_value() as f64))
         });
         Self {
             events: vec![],
@@ -63,7 +63,7 @@ where
                 let initial_parameters = array::from_fn(|param_index| {
                     let (desc, automation_rate) = P::PARAM_DESCRIPTORS[param_index];
                     match automation_rate {
-                        AutomationRate::A => Some(vec![P::parameter_f64_to_value(param_index, desc.default_value as f64); max_frame_count]),
+                        AutomationRate::A => Some(vec![P::parameter_f64_to_bits(param_index, desc.default_value() as f64); max_frame_count]),
                         AutomationRate::K => None,
                     }
                 });
@@ -109,13 +109,13 @@ where
             } else if event.type_ == CLAP_EVENT_PARAM_VALUE {
                 let param_value_event = &*(event_ptr as *const clap_event_param_value);
                 let param_index = param_value_event.param_id as usize;
-                self.parameters[param_index].store(P::parameter_f64_to_value(param_index, param_value_event.value), Ordering::Relaxed);
+                self.parameters[param_index].store(P::parameter_f64_to_bits(param_index, param_value_event.value), Ordering::Relaxed);
 
                 // map change to sample precise parameters
                 if let Some(values) = &mut self.parameters_per_sample.as_mut().unwrap()[param_value_event.param_id as usize] {
                     let offset = event.time as usize;
                     for tail_value in &mut values[offset..] {
-                        *tail_value = P::parameter_f64_to_value(param_index, param_value_event.value);
+                        *tail_value = P::parameter_f64_to_bits(param_index, param_value_event.value);
                     }
                     self.last_process_changed_parameters[param_value_event.param_id as usize] = true;
                 }

@@ -1,5 +1,5 @@
 use crate::{
-    event::Event, AutomationRate, FromParameterContext, FromRawAudioData, OutEvents, ParameterContext, ParameterDescriptor
+    event::Event, AutomationRate, FromParameterContext, FromRawAudioData, LocalParameterDescriptor, OutEvents, ParameterContext, ParameterDescriptor
 };
 use pure_audio_proc_macro::{for_params, impl_processor};
 use std::{fmt::Write, marker::PhantomData};
@@ -78,25 +78,29 @@ pub trait IntoProcessor<
 >
 {
     type Out: 'static + Processor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, Params>;
-    const HOST_PARAM_FLAGS: [bool; NUM_PARAMS];
     const PARAM_DESCRIPTORS: [(ParameterDescriptor, AutomationRate); NUM_PARAMS];
-    const PARAMS_COUNT: usize;
-    fn get_local_param_descriptor(index: usize) -> (usize, (ParameterDescriptor, AutomationRate)) {        
+    const LOCAL_PARAM_COUNT: usize;
+    fn get_local_param_descriptor(index: usize) -> (usize, (LocalParameterDescriptor, AutomationRate)) {        
         Self::local_param_descriptors_iter()
             .nth(index)
             .unwrap()
     }
-    fn local_param_descriptors_iter() -> impl Iterator<Item = (usize, (ParameterDescriptor, AutomationRate))> {
+    fn local_param_descriptors_iter() -> impl Iterator<Item = (usize, (LocalParameterDescriptor, AutomationRate))> {
         Self::PARAM_DESCRIPTORS
             .into_iter()
             .enumerate()
-            .zip(Self::HOST_PARAM_FLAGS)
-            .filter(|(_, source_is_host)| !*source_is_host)
-            .map(|((real_index, desc), ..)| (real_index, desc))
+            .filter_map(|(real_index, (desc, automation_rate))| 
+                if let ParameterDescriptor::Local(local_desc) = desc { 
+                    Some((real_index, (local_desc, automation_rate))) 
+                } 
+                else { 
+                    None 
+                }
+            )
     }
     fn into_processor(self) -> Self::Out;
-    fn parameter_f64_to_value(index: usize, d: f64) -> u32;
-    fn parameter_value_to_f64(index: usize, value: u32) -> f64;
+    fn parameter_f64_to_bits(index: usize, d: f64) -> u32;
+    fn parameter_bits_to_f64(index: usize, value: u32) -> f64;
     fn parameter_text_to_value(index: usize, text: &str) -> Option<f64>;
     fn parameter_value_to_text<W: Write>(index: usize, value: f64, writer: &mut W) -> bool;
 }
