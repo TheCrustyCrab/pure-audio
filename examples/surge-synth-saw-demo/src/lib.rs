@@ -12,39 +12,39 @@ const MAX_VOICES: usize = 64;
 const MAX_UNISON: usize = 7;
 
 #[parameter(min = 0, max = 7, default = 3, value_to_text = uni_value_to_text)]
-pub struct UnisonCount(u32);
+struct UnisonCount(u32);
 
 fn uni_value_to_text(value: f64, writer: &mut impl Write) -> bool {
     write!(writer, "{value} voices").is_ok()
 } 
 
 #[parameter(min = 0, max = 100, default = 10)]
-pub struct UnisonSpread(f32);
+struct UnisonSpread(f32);
 
 #[parameter(min = -200, max = 200, default = 0)]
-pub struct OscillatorDetune(f32);
+struct OscillatorDetune(f32);
 
 #[parameter(min = 0, max = 1, default = 0.01)]
-pub struct AmplitudeAttack(f32);
+struct AmplitudeAttack(f32);
 
 #[parameter(min = 0, max = 1, default = 0.2)]
-pub struct AmplitudeRelease(f32);
+struct AmplitudeRelease(f32);
 
 #[parameter(default = false)]
-pub struct AmplitudeEnvelopeIsGate(bool);
+struct AmplitudeEnvelopeIsGate(bool);
 
 #[parameter(min = 0, max = 1, default = 1)]
-pub struct PreFilterVCA(f32);
+struct PreFilterVCA(f32);
 
 #[parameter(min = 1, max = 127, default = 69)]
-pub struct Cutoff(f32);
+struct Cutoff(f32);
 
 #[parameter(min = 0, max = 1, default = 0.7)]
-pub struct Resonance(f32);
+struct Resonance(f32);
 
 #[parameter(default = "HighPass")]
 #[derive(Default, PartialEq)]
-pub enum FilterMode {
+enum FilterMode {
     LowPass,
     #[default]
     HighPass,
@@ -55,7 +55,7 @@ pub enum FilterMode {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub enum AEGMode {
+enum AEGMode {
     #[default]
     Off,
     Attack,
@@ -64,7 +64,7 @@ pub enum AEGMode {
     Releasing,
 }
 
-pub struct SawState {
+struct SawState {
     voices: [Voice; MAX_VOICES]
 }
 
@@ -84,7 +84,7 @@ impl State for SawState {
     }
 }
 
-pub fn process(
+fn process(
     StereoSynthData {
         events,
         out_events,

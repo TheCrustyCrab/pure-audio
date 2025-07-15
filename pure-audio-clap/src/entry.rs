@@ -70,7 +70,7 @@ macro_rules! pure_audio_clap_entry {
 
             // The returned pointer must *not* be freed by the caller.
             unsafe extern "C" fn get_factory(factory_id: *const c_char) -> *const c_void {
-                ENTRY.get_factory(factory_id)
+                unsafe { ENTRY.get_factory(factory_id) }
             }
         };
     };

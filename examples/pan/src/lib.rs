@@ -1,9 +1,9 @@
 use pure_audio::{parameter, SamplePrecise, StereoEffectData};
 
 #[parameter(min = -10, max = 10, default = 0)]
-pub struct Pan(i32);
+struct Pan(i32);
 
-pub fn process(
+fn process(
     StereoEffectData {
         inputs: [input_l, input_r],
         outputs: [output_l, output_r],

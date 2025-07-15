@@ -1,7 +1,7 @@
 use pure_audio::{parameter, MonoEffectData};
 
 #[parameter(text_to_value = volume_text_to_value, value_to_text = volume_value_to_text)]
-pub struct Volume(f32);
+struct Volume(f32);
 
 #[inline]
 fn volume_value_to_text(value: f64, writer: &mut impl std::fmt::Write) -> bool {
@@ -17,7 +17,7 @@ fn volume_text_to_value(text: &str) -> Option<f64> {
     }
 }
 
-pub fn process(MonoEffectData { input, output, .. }: MonoEffectData, volume: Volume) {
+fn process(MonoEffectData { input, output, .. }: MonoEffectData, volume: Volume) {
     for (input_sample, output_sample) in input.iter().zip(output) {
         *output_sample = input_sample * volume;
     }
