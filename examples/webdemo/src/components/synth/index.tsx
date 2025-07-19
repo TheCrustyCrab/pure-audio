@@ -3,16 +3,39 @@ import { PureAudioWorkletNode } from "../../assets/oscillator/oscillator"; // to
 import useEventBus from "../../hooks/useEventBus";
 import { useAsyncEffect } from "../../hooks/useAsyncEffect";
 
-type SynthType = "Oscillator" | "SurgeSynthSaw";
+// the dynamic imports below are crucial to prevent vite from unintentionally removing seemingly unused functions, such as createWasmProcessor, during production build
+const synthModules = {
+    "Oscillator": {
+        importEsmodule: () => import("../../assets/oscillator/oscillator")
+    },
+    "SurgeSynthSaw": {
+        importEsmodule: () => import("../../assets/surge-synth-saw-demo/surge_synth_saw_demo")
+    },
+};
+
+const effectModules = {
+    "Freeverb": {
+        importEsmodule: () => import("../../assets/freeverb/freeverb")
+    },
+    "Tremolo": {
+        importEsmodule: () => import("../../assets/tremolo/tremolo")
+    }
+};
+
+type SynthType = keyof typeof synthModules;
+// type EffectType = keyof typeof effectModules;
 
 function Synth({ audioContext }: { audioContext: AudioContext }) {
     const audioNode = useRef<PureAudioWorkletNode>(null);
-    const effectNode = useRef<PureAudioWorkletNode>(null);
+    const freeverbEffectNode = useRef<PureAudioWorkletNode>(null);
+    const tremoloEffectNode = useRef<PureAudioWorkletNode>(null);
     const [activeSynth, setActiveSynth] = useState<SynthType>("Oscillator");
     const eventBus = useEventBus();
     const synthParameterControl = useRef<HTMLDivElement>(null);
     const [freeverbEffectEnabled, setFreeverbEffectEnabled] = useState(false);
-    const effectParameterControl = useRef<HTMLDivElement>(null);
+    const freeverbParameterControl = useRef<HTMLDivElement>(null);
+    const [tremoloEffectEnabled, setTremoloEffectEnabled] = useState(false);
+    const tremoloParameterControl = useRef<HTMLDivElement>(null);
 
     // this hook avoids the 2nd simulatenous initialization in Strict Mode which caused the registerProcessor to fail detecting the first registration
     useAsyncEffect(
@@ -22,7 +45,7 @@ function Synth({ audioContext }: { audioContext: AudioContext }) {
             eventBus.subscribe("noteScheduleOff", handleNoteScheduleOff);
             eventBus.subscribe("noteScheduleOn", handleNoteScheduleOn);
             
-            await loadFreeverbEffect();
+            await loadEffects();
             await loadSynth(activeSynth);
         },
         async () => {
@@ -33,22 +56,6 @@ function Synth({ audioContext }: { audioContext: AudioContext }) {
         },
         [audioContext]
     );
-
-    // the dynamic imports below are crucial to prevent vite from unintentionally removing seemingly unused functions, such as createWasmProcessor, during production build
-    const synthModules = {
-        "Oscillator": {
-            importEsmodule: () => import("../../assets/oscillator/oscillator")
-        },
-        "SurgeSynthSaw": {
-            importEsmodule: () => import("../../assets/surge-synth-saw-demo/surge_synth_saw_demo")
-        },
-    };
-
-    const effectModules = {
-        "Freeverb": {
-            importEsmodule: () => import("../../assets/freeverb/freeverb")
-        }
-    };
 
     const handleNoteOn = ({ key, velocity }: { key: number, velocity: number }) => {
         audioNode.current?.noteOn(key, velocity)
@@ -81,12 +88,48 @@ function Synth({ audioContext }: { audioContext: AudioContext }) {
     const toggleFreeverbInAudioGraph = (enabled: boolean) => {
         if (enabled) {
             audioNode.current?.disconnect();
-            audioNode.current?.connect(effectNode.current!);
-            effectNode.current?.connect(audioContext.destination);
+            audioNode.current?.connect(freeverbEffectNode.current!);
+            if (tremoloEffectEnabled) {
+                freeverbEffectNode.current?.connect(tremoloEffectNode.current!);
+            } else {
+                freeverbEffectNode.current?.connect(audioContext.destination);
+            }
         } else {
-            effectNode.current?.disconnect();
+            freeverbEffectNode.current?.disconnect();
             audioNode.current?.disconnect();
-            audioNode.current?.connect(audioContext.destination);
+            if (tremoloEffectEnabled) {
+                audioNode.current?.connect(tremoloEffectNode.current!);
+            } else {
+                audioNode.current?.connect(audioContext.destination);
+            }
+        }
+    }
+
+    const handleTremoloCheckboxChange = (evt: ChangeEvent<HTMLInputElement>) => {
+        const enabled = evt.target.checked;
+        setTremoloEffectEnabled(enabled);
+        toggleTremoloInAudioGraph(enabled);
+    }
+
+    const toggleTremoloInAudioGraph = (enabled: boolean) => {
+        if (enabled) {
+            if (freeverbEffectEnabled) {
+                freeverbEffectNode.current?.disconnect();
+                freeverbEffectNode.current?.connect(tremoloEffectNode.current!);
+            } else {
+                audioNode.current?.disconnect();
+                audioNode.current?.connect(tremoloEffectNode.current!);
+            }
+            tremoloEffectNode.current?.connect(audioContext.destination);
+        } else {
+            tremoloEffectNode.current?.disconnect();
+            if (freeverbEffectEnabled) {
+                freeverbEffectNode.current?.disconnect();
+                freeverbEffectNode.current?.connect(audioContext.destination);
+            } else {
+                audioNode.current?.disconnect();
+                audioNode.current?.connect(audioContext.destination);
+            }
         }
     }
 
@@ -114,14 +157,22 @@ function Synth({ audioContext }: { audioContext: AudioContext }) {
         toggleFreeverbInAudioGraph(freeverbEffectEnabled);
     }
 
-    const loadFreeverbEffect = async () => {
-        const { importEsmodule } = effectModules["Freeverb"];
+    const loadEffects = async () => {
+        const { importEsmodule: importFreeverbEsmodule } = effectModules["Freeverb"];
         const {
-            default: init,
-            createAudioNodeWithGeneratedParameterUI
-        } = await importEsmodule();
-        await init();
-        effectNode.current = await createAudioNodeWithGeneratedParameterUI(audioContext, effectParameterControl.current!);
+            default: initFreeverb,
+            createAudioNodeWithGeneratedParameterUI: createFreeverbAudioNodeWithGeneratedParameterUI
+        } = await importFreeverbEsmodule();
+        await initFreeverb();
+        freeverbEffectNode.current = await createFreeverbAudioNodeWithGeneratedParameterUI(audioContext, freeverbParameterControl.current!);
+        const { importEsmodule: importTremoloEsmodule } = effectModules["Tremolo"];
+        const {
+            default: initTremolo,
+            createAudioNodeWithGeneratedParameterUI: createTremoloAudioNodeWithGeneratedParameterUI
+        } = await importTremoloEsmodule();
+        await initTremolo();
+        tremoloEffectNode.current = await createTremoloAudioNodeWithGeneratedParameterUI(audioContext, tremoloParameterControl.current!);
+        tremoloEffectNode.current.setHostTempo(120);
     }
 
     return (
@@ -139,7 +190,13 @@ function Synth({ audioContext }: { audioContext: AudioContext }) {
                 Enable Freeverb
                 <input type="checkbox" checked={freeverbEffectEnabled} onChange={handleFreeverbCheckboxChange} />
             </div>
-            <div ref={effectParameterControl} style={{ display: freeverbEffectEnabled ? "block" : "none" }} />   
+            <div ref={freeverbParameterControl} style={{ display: freeverbEffectEnabled ? "block" : "none" }} />
+            <hr/>
+            <div>
+                Enable Tremolo
+                <input type="checkbox" checked={tremoloEffectEnabled} onChange={handleTremoloCheckboxChange} />
+            </div>
+            <div ref={tremoloParameterControl} style={{ display: tremoloEffectEnabled ? "block" : "none" }} />
         </>
     );
 }

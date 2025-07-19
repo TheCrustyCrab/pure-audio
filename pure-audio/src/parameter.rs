@@ -193,7 +193,7 @@ impl HostParameters {
     }
 }
 
-pub struct Tempo(f32);
+pub struct Tempo(pub f32);
 
 impl FromParameterContext for Tempo {
     const DESCRIPTOR: ParameterDescriptor = ParameterDescriptor::Host;

@@ -9,6 +9,7 @@ members = [
     "examples/oscillator",
     "examples/pan",
     "examples/surge-synth-saw-demo",
+    "examples/tremolo",
     "examples/webdemo/midi-file-parser",
 ]
 resolver = "2"

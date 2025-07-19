@@ -1,0 +1,40 @@
+<html>
+    <head></head>
+    <body>
+        <div>
+            Click anywhere to start
+        </div>
+        <div id="parameters"></div>
+        <div>
+            <label id="tempoLabel" for="tempo"></label>
+            <input id="tempo" type="range" min="0" max="240" value="120" step="1"/>
+        </div>
+        <script type="module">
+            import init, { createAudioNodeWithGeneratedParameterUI } from "./tremolo.js";
+
+            async function run() {
+                document.body.removeEventListener("click", run);
+
+                await init();
+                const ctx = new AudioContext();
+                const tremolo = await createAudioNodeWithGeneratedParameterUI(ctx, document.getElementById("parameters"));
+                const tone = new OscillatorNode(ctx, {
+                    frequency: 440
+                });
+                tone.start();
+                tone.connect(tremolo);
+                tremolo.connect(ctx.destination);
+
+                function setTempo(value) {
+                    tremolo.setHostTempo(value);
+                    document.getElementById("tempoLabel").innerHTML = `${value} bpm`;
+                }
+
+                setTempo(120);
+                document.getElementById("tempo").addEventListener("change", evt => setTempo(parseFloat(evt.target.value)));
+            }
+
+            document.body.addEventListener("click", run);
+        </script>
+    </body>
+</html>

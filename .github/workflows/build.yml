@@ -47,6 +47,12 @@ jobs:
               run: |
                 cargo build --target wasm32-unknown-unknown --release
                 wasm-bindgen ../../target/wasm32-unknown-unknown/release/surge_synth_saw_demo.wasm --target web --out-dir ../webdemo/src/assets/surge-synth-saw-demo
+
+            - name: Build tremolo example
+              working-directory: examples/tremolo
+              run: |
+                cargo build --target wasm32-unknown-unknown --release
+                wasm-bindgen ../../target/wasm32-unknown-unknown/release/tremolo.wasm --target web --out-dir ../webdemo/src/assets/tremolo
             
             - name: Build webdemo
               run: npm install && npm run build
