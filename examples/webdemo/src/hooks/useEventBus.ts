@@ -6,8 +6,11 @@ type NoteScheduleOnEvent = { time: number, key: number, velocity: number };
 type NoteScheduleOffEvent = { time: number, key: number, velocity: number };
 type NoteScheduledOnTriggeredEvent = { key: number, velocity: number };
 type NoteScheduledOffTriggeredEvent = { key: number, velocity: number };
+type HostTempoChangeEvent = { tempo: number };
+type HostStartPlayingEvent = {};
+type HostStopPlayingEvent = {};
 
-type Event = NoteOnEvent | NoteOffEvent | NoteScheduleOnEvent | NoteScheduleOffEvent | NoteScheduledOnTriggeredEvent | NoteScheduledOffTriggeredEvent;
+type Event = NoteOnEvent | NoteOffEvent | NoteScheduleOnEvent | NoteScheduleOffEvent | NoteScheduledOnTriggeredEvent | NoteScheduledOffTriggeredEvent | HostTempoChangeEvent | HostStartPlayingEvent | HostStopPlayingEvent;
 
 interface EventTypeMap {
     "noteOn": NoteOnEvent,
@@ -15,7 +18,10 @@ interface EventTypeMap {
     "noteScheduleOn": NoteScheduleOnEvent,
     "noteScheduleOff": NoteScheduleOffEvent,
     "noteScheduledOnTriggered": NoteScheduledOnTriggeredEvent,
-    "noteScheduledOffTriggered": NoteScheduledOffTriggeredEvent
+    "noteScheduledOffTriggered": NoteScheduledOffTriggeredEvent,
+    "hostTempoChange": HostTempoChangeEvent,
+    "hostStartPlaying": HostStartPlayingEvent,
+    "hostStopPlaying": HostStopPlayingEvent
 }
 
 export class EventBus {
@@ -29,6 +35,9 @@ export class EventBus {
             ["noteScheduleOff", []],
             ["noteScheduledOnTriggered", []],
             ["noteScheduledOffTriggered", []],
+            ["hostTempoChange", []],
+            ["hostStartPlaying", []],
+            ["hostStopPlaying", []]
         ]);
     }
 

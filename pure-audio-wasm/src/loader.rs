@@ -264,6 +264,8 @@ where
                         // which is currently not guaranteed to come out-of-the-box from a host application
                         // it could be implemented in the bridge but processors shouldn't be forced to depend on such logic if they don't use host parameters
                         // so for now: leave such change detection to the implementing processor
+                    }} else if (msg.data.type == "setHostIsPlaying") {{
+                        this.processor.set_host_is_playing(msg.data.data.value);
                     }}
                     else if (msg.data.type === "indicateParamsChanged") {{
                         this.processor.indicate_params_changed();

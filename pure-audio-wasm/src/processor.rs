@@ -59,6 +59,10 @@ impl WasmProcessor {
         self.implementation.set_host_tempo(tempo);
     }
 
+    pub fn set_host_is_playing(&mut self, is_playing: bool) {
+        self.implementation.set_host_is_playing(is_playing);
+    }
+
     pub fn indicate_params_changed(&mut self) {
         self.implementation.indicate_params_changed();
     }
@@ -75,6 +79,7 @@ trait WasmProcessorImplementation: 'static {
     fn schedule_note_on(&mut self, time: f64, key: u8, velocity: u8);
     fn schedule_note_off(&mut self, time: f64, key: u8, velocity: u8);
     fn set_host_tempo(&mut self, tempo: f32);
+    fn set_host_is_playing(&mut self, is_playing: bool);
     fn indicate_params_changed(&mut self);
 }
 
@@ -121,7 +126,7 @@ where
             }),
             // from wasm's perspective, it would've been easier to store host parameters with the other parameters, the space is reservered anyway
             // but that approach would be less efficient for CLAP, where host parameters are available directly in the process call
-            host_parameters: HostParameters::new(0.0),
+            host_parameters: HostParameters::new(false, 0.0),
             marker: PhantomData
         }
     }
@@ -243,6 +248,10 @@ where
 
     fn set_host_tempo(&mut self, value: f32) {
         self.host_parameters.tempo = value;
+    }
+
+    fn set_host_is_playing(&mut self, value: bool) {
+        self.host_parameters.is_playing = value;
     }
 
     fn indicate_params_changed(&mut self) {

@@ -182,14 +182,15 @@ impl<'a> ParameterContext<'a> {
 
 #[derive(Clone, Copy)]
 pub struct HostParameters {
+    pub is_playing: bool,
     pub tempo: f32
     // todo: song position etc
 }
 
 impl HostParameters {
     #[inline]
-    pub fn new(tempo: f32) -> Self {
-        Self { tempo }
+    pub fn new(is_playing: bool, tempo: f32) -> Self {
+        Self { is_playing, tempo }
     }
 }
 
@@ -205,6 +206,38 @@ impl FromParameterContext for Tempo {
     #[inline]
     fn from_parameter_context<'a>(context: ParameterContext<'a>, _index: usize) -> Self::Out<'a> {
         Tempo(context.host_parameters.tempo)
+    }
+
+    // values don't matter but called during initialisation
+    fn f64_to_bits(_d: f64) -> u32 {
+        0
+    }
+
+    fn bits_to_f64(_value: u32) -> f64 {
+        0.0
+    }
+
+    fn text_to_value(_text: &str) -> Option<f64> {
+        None
+    }
+
+    fn value_to_text(_value: f64, _writer: &mut impl Write) -> bool {
+        false
+    }
+}
+
+pub struct IsPlaying(pub bool);
+
+impl FromParameterContext for IsPlaying {
+    const DESCRIPTOR: ParameterDescriptor = ParameterDescriptor::Host;
+
+    const AUTOMATION_RATE: AutomationRate = AutomationRate::K;
+
+    type Out<'a> = IsPlaying;
+
+    #[inline]
+    fn from_parameter_context<'a>(context: ParameterContext<'a>, _index: usize) -> Self::Out<'a> {
+        IsPlaying(context.host_parameters.is_playing)
     }
 
     // values don't matter but called during initialisation

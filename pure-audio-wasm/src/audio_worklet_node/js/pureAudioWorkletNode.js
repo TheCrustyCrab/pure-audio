@@ -77,6 +77,15 @@ if (root.AudioWorkletNode === undefined) {
             });
         }
 
+        setHostIsPlaying(value) {
+            this.port.postMessage({
+                type: "setHostIsPlaying",
+                data: {
+                    value
+                }
+            });
+        }
+
         addOutputEventListener(callback) {
             this.outputEventListeners.push(callback);
         }

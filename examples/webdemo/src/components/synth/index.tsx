@@ -40,6 +40,9 @@ function Synth({ audioContext }: { audioContext: AudioContext }) {
     // this hook avoids the 2nd simulatenous initialization in Strict Mode which caused the registerProcessor to fail detecting the first registration
     useAsyncEffect(
         async () => {
+            eventBus.subscribe("hostTempoChange", handleHostTempoChange);
+            eventBus.subscribe("hostStartPlaying", handleHostStartPlaying);
+            eventBus.subscribe("hostStopPlaying", handleHostStopPlaying);
             eventBus.subscribe("noteOff", handleNoteOff);
             eventBus.subscribe("noteOn", handleNoteOn);
             eventBus.subscribe("noteScheduleOff", handleNoteScheduleOff);
@@ -49,6 +52,9 @@ function Synth({ audioContext }: { audioContext: AudioContext }) {
             await loadSynth(activeSynth);
         },
         async () => {
+            eventBus.unsubscribe("hostTempoChange", handleHostTempoChange);
+            eventBus.unsubscribe("hostStartPlaying", handleHostStartPlaying);
+            eventBus.unsubscribe("hostStopPlaying", handleHostStopPlaying);
             eventBus.unsubscribe("noteOff", handleNoteOff);
             eventBus.unsubscribe("noteOn", handleNoteOn);
             eventBus.unsubscribe("noteScheduleOff", handleNoteScheduleOff);
@@ -56,6 +62,18 @@ function Synth({ audioContext }: { audioContext: AudioContext }) {
         },
         [audioContext]
     );
+
+    const handleHostTempoChange = ({ tempo }: { tempo: number }) => {
+        [audioNode.current, freeverbEffectNode.current, tremoloEffectNode.current].forEach(node => node?.setHostTempo(tempo));
+    }
+
+    const handleHostStartPlaying = ({}) => {
+        [audioNode.current, freeverbEffectNode.current, tremoloEffectNode.current].forEach(node => node?.setHostIsPlaying(true));
+    }
+
+    const handleHostStopPlaying = ({}) => {
+        [audioNode.current, freeverbEffectNode.current, tremoloEffectNode.current].forEach(node => node?.setHostIsPlaying(false));
+    }
 
     const handleNoteOn = ({ key, velocity }: { key: number, velocity: number }) => {
         audioNode.current?.noteOn(key, velocity)

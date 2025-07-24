@@ -54,6 +54,12 @@ function MidiPlayer({ audioContext, midiFile }: MidiPlayerProps) {
         eventIterator.current = null;
     }
 
+    const handleTempoChange = (evt: ChangeEvent<HTMLInputElement>) => {
+        const tempo = parseInt(evt.target.value);
+        setTempo(tempo);
+        eventBus.publish("hostTempoChange", { tempo });
+    }
+
     const scheduleMidiEvents = () => {
         const elapsedSeconds = audioContext!.currentTime - playMidiStartTime!;
         const elapsedBeats = elapsedSeconds * beatsPerSecond;
@@ -112,10 +118,12 @@ function MidiPlayer({ audioContext, midiFile }: MidiPlayerProps) {
         }
 
         setPlayMidiStartTime(audioContext!.currentTime);
+        eventBus.publish("hostStartPlaying", {});
     }
 
     const pauseMidi = () => {
         setPausingTime(audioContext!.currentTime);
+        eventBus.publish("hostStopPlaying", {});
     }
 
     const stopMidi = () => {
@@ -128,6 +136,7 @@ function MidiPlayer({ audioContext, midiFile }: MidiPlayerProps) {
 
         setElapsedTimeInBeats(0);
         eventIterator.current = null;
+        eventBus.publish("hostStopPlaying", {});
     }
 
     if (!midiFileParserLoaded) {
@@ -160,7 +169,7 @@ function MidiPlayer({ audioContext, midiFile }: MidiPlayerProps) {
                         <button onClick={stopMidi}>Stop</button>
                         <span>{Math.ceil(elapsedTimeInBeats)}</span>
                         <p>
-                            Tempo <input type="number" min={60} max={150} defaultValue={130} onChange={evt => setTempo(parseInt(evt.target.value))}></input>
+                            Tempo <input type="number" min={60} max={150} defaultValue={130} onChange={handleTempoChange}></input>
                         </p>
                     </>
             }            
