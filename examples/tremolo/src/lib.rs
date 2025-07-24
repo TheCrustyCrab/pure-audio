@@ -1,4 +1,6 @@
-use pure_audio::{parameter, Event, MonoEffectData, State, Tempo};
+mod tests;
+
+use pure_audio::{parameter, Event, IsPlaying, MonoEffectData, State, Tempo};
 use std::f32::consts::{FRAC_2_PI, FRAC_PI_2, TAU};
 
 #[derive(Default)]
@@ -29,6 +31,7 @@ struct LFO {
     phase: f64,
     phase_increment: f64,
     sample_rate: f64,
+    host_is_playing: bool,
     tempo: f32,
 }
 
@@ -40,6 +43,7 @@ impl Default for LFO {
             phase: 0.0,
             phase_increment: 0.0,
             sample_rate: 0.0,
+            host_is_playing: false,
             tempo: 0.0,
         };
         lfo.set_depth(1.0);
@@ -76,6 +80,13 @@ impl LFO {
         self.recalculate();
     }
 
+    fn set_is_playing(&mut self, value: bool) {
+        self.host_is_playing = value;
+        if value {
+            self.phase = 0.0; // reset phase to ensure beat/peak alignment
+        }
+    }
+
     fn set_tempo(&mut self, value: f32) {
         self.tempo = value;
         self.recalculate();
@@ -102,11 +113,16 @@ fn process(
         events,
         ..
     }: MonoEffectData<LFO>,
+    IsPlaying(is_playing): IsPlaying,
     Tempo(tempo): Tempo,
     rate: Rate,
     Depth(depth): Depth,
     shape: Shape,
 ) {
+    if lfo.host_is_playing != is_playing {
+        lfo.set_is_playing(is_playing);
+    }
+
     if lfo.tempo != tempo {
         lfo.set_tempo(tempo);
     }
@@ -120,13 +136,14 @@ fn process(
 
     for (input_sample, output_sample) in input.iter().zip(output) {
         let gain = match shape {
-            // normalize to [1-depth, 1] + shift phase by (-)pi/2 to start with a peak
+            // normalize to [1-depth, 1] + shift phase by pi/2 to start with a peak
             Shape::Sine => 1.0 - ((TAU * lfo.advance() as f32 - FRAC_PI_2).sin() + 1.0) / lfo.depth_denominator,
-            Shape::Triangle => 1.0 - (FRAC_2_PI * ((TAU * lfo.advance() as f32 + FRAC_PI_2).sin()).asin() + 1.0) / lfo.depth_denominator,
+            Shape::Triangle => 1.0 - (FRAC_2_PI * ((TAU * lfo.advance() as f32 - FRAC_PI_2).sin()).asin() + 1.0) / lfo.depth_denominator,
         };
         *output_sample = input_sample * gain;
     }
 }
+
 #[cfg(target_arch = "wasm32")]
 pure_audio_wasm::pure_audio_wasm_entry!("Tremolo", process);
 
