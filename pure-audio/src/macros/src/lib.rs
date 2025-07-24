@@ -90,7 +90,7 @@ pub fn impl_processor(ts: TokenStream) -> TokenStream {
             S: 'static + State,
             {
                 #[inline]
-                fn activate(&mut self, sample_rate: f32, min_frame_count: usize, max_frame_count: usize) {
+                fn activate(&mut self, sample_rate: f64, min_frame_count: usize, max_frame_count: usize) {
                     self.state.activate(sample_rate, min_frame_count, max_frame_count);
                 }
 

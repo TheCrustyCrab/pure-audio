@@ -34,7 +34,7 @@ pub fn create_wasm_processor<
     S,
 >(
     process: P,
-    sample_rate: f32,
+    sample_rate: f64,
     output_event_callback: js_sys::Function,
 ) -> WasmProcessor
 where

@@ -5,11 +5,11 @@ use pure_audio_proc_macro::{for_params, impl_processor};
 use std::{fmt::Write, marker::PhantomData};
 
 pub trait State: Default {
-    fn activate(&mut self, sample_rate: f32, min_frame_count: usize, max_frame_count: usize);
+    fn activate(&mut self, sample_rate: f64, min_frame_count: usize, max_frame_count: usize);
 }
 
 impl State for () {
-    fn activate(&mut self, _sample_rate: f32, _min_frame_count: usize, _max_frame_count: usize) {}
+    fn activate(&mut self, _sample_rate: f64, _min_frame_count: usize, _max_frame_count: usize) {}
 }
 
 pub trait Processor<
@@ -20,7 +20,7 @@ pub trait Processor<
     Params,
 >
 {
-    fn activate(&mut self, sample_rate: f32, min_frame_count: usize, max_frame_count: usize);
+    fn activate(&mut self, sample_rate: f64, min_frame_count: usize, max_frame_count: usize);
 
     fn process<'a>(
         &'a mut self,

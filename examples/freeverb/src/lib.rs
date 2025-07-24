@@ -67,8 +67,8 @@ impl DelayLine {
         };
     }
 
-    fn resize(&mut self, sample_rate: f32) {
-        let new_length = (self.base_length as f32 * sample_rate / 44100.0) as usize;
+    fn resize(&mut self, sample_rate: f64) {
+        let new_length = (self.base_length as f64 * sample_rate / 44100.0) as usize;
         self.buffer.resize(new_length, 0.0);
     }
 }
@@ -101,7 +101,7 @@ impl Comb {
         self.feedback = value;
     }
 
-    fn resize(&mut self, sample_rate: f32) {
+    fn resize(&mut self, sample_rate: f64) {
         self.delay_line.resize(sample_rate);
     }
 
@@ -127,7 +127,7 @@ impl AllPass {
         }
     }
 
-    fn resize(&mut self, sample_rate: f32) {
+    fn resize(&mut self, sample_rate: f64) {
         self.delay_line.resize(sample_rate);
     }
 
@@ -265,7 +265,7 @@ impl Default for Freeverb {
 }
 
 impl State for Freeverb {
-    fn activate(&mut self, sample_rate: f32, _min_frame_count: usize, _max_frame_count: usize) {
+    fn activate(&mut self, sample_rate: f64, _min_frame_count: usize, _max_frame_count: usize) {
         self.resize(sample_rate);
     }
 }
@@ -323,7 +323,7 @@ impl Freeverb {
         );
     }
 
-    fn resize(&mut self, sample_rate: f32) {
+    fn resize(&mut self, sample_rate: f64) {
         for (comb_l, comb_r) in self.combs.iter_mut() {
             comb_l.resize(sample_rate);
             comb_r.resize(sample_rate);

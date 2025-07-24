@@ -26,9 +26,9 @@ enum Shape {
 struct LFO {
     rate: Rate,
     depth_denominator: f32,
-    phase: f32,
-    phase_increment: f32,
-    sample_rate: f32,
+    phase: f64,
+    phase_increment: f64,
+    sample_rate: f64,
     tempo: f32,
 }
 
@@ -48,13 +48,13 @@ impl Default for LFO {
 }
 
 impl State for LFO {
-    fn activate(&mut self, sample_rate: f32, _min_frame_count: usize, _max_frame_count: usize) {
+    fn activate(&mut self, sample_rate: f64, _min_frame_count: usize, _max_frame_count: usize) {
         self.set_sample_rate(sample_rate);
     }
 }
 
 impl LFO {
-    fn advance(&mut self) -> f32 {
+    fn advance(&mut self) -> f64 {
         self.phase += self.phase_increment;
         if self.phase > 1.0 {
             self.phase -= 1.0;
@@ -71,7 +71,7 @@ impl LFO {
         self.depth_denominator = 2.0 * (1.0 / value);
     }
 
-    fn set_sample_rate(&mut self, value: f32) {
+    fn set_sample_rate(&mut self, value: f64) {
         self.sample_rate = value;
         self.recalculate();
     }
@@ -90,7 +90,7 @@ impl LFO {
             Rate::Sixteenth => 16.0,
         };
         let frequency = self.tempo / 60.0 * multiplier;
-        self.phase_increment = frequency / self.sample_rate;
+        self.phase_increment = frequency as f64 / self.sample_rate;
     }
 }
 
@@ -121,8 +121,8 @@ fn process(
     for (input_sample, output_sample) in input.iter().zip(output) {
         let gain = match shape {
             // normalize to [1-depth, 1] + shift phase by (-)pi/2 to start with a peak
-            Shape::Sine => 1.0 - ((TAU * lfo.advance() - FRAC_PI_2).sin() + 1.0) / lfo.depth_denominator,
-            Shape::Triangle => 1.0 - (FRAC_2_PI * ((TAU * lfo.advance() + FRAC_PI_2).sin()).asin() + 1.0) / lfo.depth_denominator,
+            Shape::Sine => 1.0 - ((TAU * lfo.advance() as f32 - FRAC_PI_2).sin() + 1.0) / lfo.depth_denominator,
+            Shape::Triangle => 1.0 - (FRAC_2_PI * ((TAU * lfo.advance() as f32 + FRAC_PI_2).sin()).asin() + 1.0) / lfo.depth_denominator,
         };
         *output_sample = input_sample * gain;
     }

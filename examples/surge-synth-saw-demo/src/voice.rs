@@ -17,22 +17,22 @@ pub struct Voice {
     resonance: Resonance,
     resonance_mod: f32,
     amplitude_envelope_is_gate: AmplitudeEnvelopeIsGate,
-    amplitude_attack_seconds: f32,
-    amplitude_release_seconds: f32,
+    amplitude_attack_seconds: f64,
+    amplitude_release_seconds: f64,
     prefilter_vca: PreFilterVCA,
     prefilter_vca_mod: f32,
     volume_note_expression_value: f32,
     pitch_note_expression_value: f32,
     pitch_bend_wheel: f32,
-    pub(crate) sample_rate: f32,
+    pub(crate) sample_rate: f64,
     pub(crate) aeg_mode: AEGMode,
     pub(crate) out_l: f32,
     pub(crate) out_r: f32,
     filter: StereoSimperSVF,
     base_freq: f32,
-    sr_inv: f32,
-    time: f32,
-    release_from: f32,
+    sr_inv: f64,
+    time: f64,
+    release_from: f64,
     pan_l: [f32; MAX_UNISON],
     pan_r: [f32; MAX_UNISON],
     unit_shift: [f32; MAX_UNISON],
@@ -192,7 +192,7 @@ impl Voice {
 
                 if let AmplitudeEnvelopeIsGate(true) = self.amplitude_envelope_is_gate {
                     ar = 1.0;
-                    const LAST_SEG: f32 = 0.02;
+                    const LAST_SEG: f64 = 0.02;
                     if tn > 1.0 - LAST_SEG {
                         // avoid a click with a last 2% fade
                         ar = 1.0 - (tn - (1.0 - LAST_SEG)) / LAST_SEG;
@@ -207,7 +207,7 @@ impl Voice {
             _ => {}
         }
 
-        ar *= self.prefilter_vca + self.prefilter_vca_mod + self.volume_note_expression_value;
+        ar *= (self.prefilter_vca + self.prefilter_vca_mod + self.volume_note_expression_value) as f64;
         self.out_l = 0.0;
         self.out_r = 0.0;
 
@@ -227,8 +227,8 @@ impl Voice {
                 * self.d_phase_inv[i]
                 * self.d_phase_inv[i]) as f32;
 
-            self.out_l += 0.2 * self.norm[i] * ar * self.pan_l[i] * saw;
-            self.out_r += 0.2 * self.norm[i] * ar * self.pan_r[i] * saw;
+            self.out_l += 0.2 * self.norm[i] * ar as f32 * self.pan_l[i] * saw;
+            self.out_r += 0.2 * self.norm[i] * ar as f32 * self.pan_r[i] * saw;
 
             self.phase[i] += self.d_phase[i];
             if self.phase[i] > 1.0 {
@@ -286,11 +286,11 @@ impl Voice {
             );
 
         for i in 0..self.unison_count.0 as usize {
-            self.d_phase[i] = ((self.base_freq
-                * 2f32.powf(
-                    (self.unison_spread + self.unison_spread_mod) * self.unit_shift[i]
+            self.d_phase[i] = ((self.base_freq as f64
+                * 2f64.powf(
+                    ((self.unison_spread + self.unison_spread_mod) * self.unit_shift[i]
                         / 100.0
-                        / 12.0,
+                        / 12.0) as f64,
                 ))
                 / self.sample_rate) as f64;
             self.d_phase_inv[i] = 1.0 / self.d_phase[i];
@@ -307,7 +307,7 @@ impl Voice {
             self.filter.init();
         }
         self.filter.mode = new_fm;
-        self.filter.set_coeff(co, rm, self.sr_inv);
+        self.filter.set_coeff(co, rm, self.sr_inv as f32);
     }
 
     #[inline]
@@ -320,9 +320,9 @@ impl Voice {
 }
 
 #[inline]
-fn scale_time_param_to_seconds(value: f32) -> f32 {
+fn scale_time_param_to_seconds(value: f32) -> f64 {
     let scale_time = ((value - 2.0 / 3.0) * 6.0).clamp(-100.0, 2.0);
-    2f32.powf(scale_time)
+    2f64.powf(scale_time as f64)
 }
 
 #[derive(Clone, Copy, Default)]

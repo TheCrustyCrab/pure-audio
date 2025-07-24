@@ -133,11 +133,11 @@ where
 }
 
 pub(crate) trait IntoWasmProcessor<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S> {
-    fn into_wasm_processor(self, sample_rate: f32, output_event_callback: js_sys::Function) -> WasmProcessor;
+    fn into_wasm_processor(self, sample_rate: f64, output_event_callback: js_sys::Function) -> WasmProcessor;
 }
 
 trait IntoWasmProcessorImplementation<const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S> {
-    fn into_wasm_processor_implementation(self, sample_rate: f32, output_event_callback: js_sys::Function) -> impl WasmProcessorImplementation;
+    fn into_wasm_processor_implementation(self, sample_rate: f64, output_event_callback: js_sys::Function) -> impl WasmProcessorImplementation;
 }
 
 impl<I, const NUM_INPUTS: usize, const NUM_OUTPUTS: usize, const NUM_CHANNELS: usize, const NUM_PARAMS: usize, A, Params, S> IntoWasmProcessor<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S> for I
@@ -145,7 +145,7 @@ where
     I: IntoWasmProcessorImplementation<NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>
 {
 
-    fn into_wasm_processor(self, sample_rate: f32, output_event_callback: js_sys::Function) -> WasmProcessor {
+    fn into_wasm_processor(self, sample_rate: f64, output_event_callback: js_sys::Function) -> WasmProcessor {
         WasmProcessor::new(Box::new(self.into_wasm_processor_implementation(sample_rate, output_event_callback)))
     }
 }
@@ -266,7 +266,7 @@ where
     Params: 'static,
     S: 'static + Default
 {
-    fn into_wasm_processor_implementation(self, sample_rate: f32, output_event_callback: js_sys::Function) -> impl WasmProcessorImplementation {
+    fn into_wasm_processor_implementation(self, sample_rate: f64, output_event_callback: js_sys::Function) -> impl WasmProcessorImplementation {
         let mut processor = self.into_processor();
         processor.activate(sample_rate, PROCESSOR_BLOCK_LENGTH, PROCESSOR_BLOCK_LENGTH);
         WasmProcessorWrapper::<P, NUM_INPUTS, NUM_OUTPUTS, NUM_CHANNELS, NUM_PARAMS, A, Params, S>::new(processor, &P::PARAM_DESCRIPTORS, output_event_callback)

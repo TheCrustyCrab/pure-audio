@@ -10,7 +10,7 @@ macro_rules! pure_audio_wasm_entry {
             use pure_audio_wasm::web_sys::{AudioContext, Element};
 
             #[wasm_bindgen(js_name = createWasmProcessor)]
-            pub fn create_wasm_processor(sample_rate: f32, output_event_callback: js_sys::Function) -> pure_audio_wasm::WasmProcessor {
+            pub fn create_wasm_processor(sample_rate: f64, output_event_callback: js_sys::Function) -> pure_audio_wasm::WasmProcessor {
                 pure_audio_wasm::create_wasm_processor($process, sample_rate, output_event_callback)
             }
             

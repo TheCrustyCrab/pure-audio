@@ -77,7 +77,7 @@ impl Default for SawState {
 }
 
 impl State for SawState {
-    fn activate(&mut self, sample_rate: f32, _min_frame_count: usize, _max_frame_count: usize) {
+    fn activate(&mut self, sample_rate: f64, _min_frame_count: usize, _max_frame_count: usize) {
         for voice in self.voices.iter_mut() {
             voice.sample_rate = sample_rate;
         }

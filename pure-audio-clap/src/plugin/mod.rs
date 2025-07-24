@@ -41,7 +41,7 @@ where
     }
 
     pub fn activate(&mut self, sample_rate: f64, min_frame_count: usize, max_frame_count: usize) {
-        self.processor.activate(sample_rate as f32, min_frame_count, max_frame_count);
+        self.processor.activate(sample_rate, min_frame_count, max_frame_count);
 
         match &mut self.parameters_per_sample {
             Some(parameters) => {
