@@ -3,10 +3,8 @@ mod tests;
 use pure_audio::{parameter, Event, IsPlaying, MonoEffectData, State, Tempo};
 use std::f32::consts::{FRAC_2_PI, FRAC_PI_2, TAU};
 
-#[derive(Default)]
-#[parameter]
+#[parameter(variant_display_names = ["1/1", "1/2", "1/4", "1/8", "1/16"])]
 enum Rate {
-    #[default]
     One,
     Second,
     Quarter,
@@ -17,10 +15,8 @@ enum Rate {
 #[parameter(min = 0.001, max = 1, default = 1)]
 struct Depth(f32);
 
-#[derive(Default)]
 #[parameter]
 enum Shape {
-    #[default]
     Sine,
     Triangle
 }

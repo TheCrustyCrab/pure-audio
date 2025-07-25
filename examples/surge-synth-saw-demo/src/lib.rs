@@ -43,10 +43,9 @@ struct Cutoff(f32);
 struct Resonance(f32);
 
 #[parameter(default = "HighPass")]
-#[derive(Default, PartialEq)]
+#[derive(PartialEq)]
 enum FilterMode {
     LowPass,
-    #[default]
     HighPass,
     BandPass,
     Notch,

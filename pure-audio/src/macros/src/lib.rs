@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::{Punct, Spacing, Span, TokenTree};
 use quote::{format_ident, quote};
-use syn::{parse::Parse, parse_macro_input, spanned::Spanned, token::Comma, Expr, Fields, FieldsUnnamed, Ident, Item, ItemStruct, LitBool, LitFloat, LitInt, LitStr, Token, Type, TypePath};
+use syn::{parse::Parse, parse_macro_input, parse_quote, spanned::Spanned, token::Comma, Attribute, Expr, Fields, FieldsUnnamed, Ident, Item, ItemStruct, Lit, LitBool, LitFloat, LitInt, LitStr, Token, Type, TypePath};
 
 struct ForParamsInput {
     macro_ident: Ident,
@@ -61,7 +61,7 @@ impl Parse for ImplProcessorInput {
     }
 }
 
-/// Generates an implementation of [`Processor`] for a process functions with a given number of parameters.
+/// Generates an implementation of [`Processor`] and [`IntoProcessor`] for a process function with a given number of parameters.
 #[proc_macro]
 pub fn impl_processor(ts: TokenStream) -> TokenStream {
     let ImplProcessorInput { num_params } = parse_macro_input!(ts as ImplProcessorInput);
@@ -332,8 +332,7 @@ impl Parse for BoolParameterAttrs {
 enum EnumParameterAttr {
     Name(LitStr),
     DefaultValue(LitStr),
-    TextToValue(Expr),
-    ValueToText(Expr)
+    VariantDisplayNames(Expr),
 }
 
 impl Parse for EnumParameterAttr {
@@ -344,8 +343,7 @@ impl Parse for EnumParameterAttr {
         match key.as_ref() {
             "name" => Ok(EnumParameterAttr::Name(input.parse()?)),
             "default" => Ok(EnumParameterAttr::DefaultValue(input.parse()?)),
-            "text_to_value" => Ok(EnumParameterAttr::TextToValue(input.parse()?)),
-            "value_to_text" => Ok(EnumParameterAttr::ValueToText(input.parse()?)),
+            "variant_display_names" => Ok(EnumParameterAttr::VariantDisplayNames(input.parse()?)),
             _ => Err(syn::Error::new(key_token.span(), format!("attribute '{key}' is not supported for enum types")))
         }
     }
@@ -354,8 +352,7 @@ impl Parse for EnumParameterAttr {
 struct EnumParameterAttrs {
     name: Option<String>,
     default_value: Option<f32>,
-    text_to_value: Option<Expr>,
-    value_to_text: Option<Expr>
+    variant_display_names: Option<Vec<String>>,
 }
 
 impl EnumParameterAttrs {
@@ -367,8 +364,7 @@ impl EnumParameterAttrs {
         
         let mut name = None;
         let mut default_value = None;
-        let mut text_to_value = None;
-        let mut value_to_text = None;
+        let mut variant_display_names = None;
 
         for attr in attrs {
             match attr {
@@ -379,16 +375,41 @@ impl EnumParameterAttrs {
                     };
                     default_value = Some(value as f32);
                 },
-                EnumParameterAttr::TextToValue(expr) => text_to_value = Some(expr),
-                EnumParameterAttr::ValueToText(expr) => value_to_text = Some(expr)
+                EnumParameterAttr::VariantDisplayNames(expr) => {
+                    let Expr::Array(arr) = expr else {
+                        return Err(syn::Error::new(expr.span(), "expected an array of string literals"));
+                    };
+
+                    if arr.elems.len() != variants.len() {
+                        return Err(syn::Error::new(arr.span(), "expected exactly one display name per variant"));
+                    }
+
+                    let display_names = 
+                        arr
+                            .elems
+                            .iter()
+                            .map(|item| {
+                                let Expr::Lit(syn::ExprLit { lit, .. }) = item else {
+                                    return Err(syn::Error::new(item.span(), "expected an array of string literals"));
+                                };
+
+                                let Lit::Str(display_name) = lit else {
+                                    return Err(syn::Error::new(lit.span(), "expected an array of string literals"));
+                                };
+
+                                Ok(display_name.value())
+                            })
+                            .collect::<Result<Vec<String>, _>>()?;
+                    
+                    variant_display_names = Some(display_names);
+                }
             }
         }
 
         Ok(Self {
             name,
             default_value,
-            text_to_value,
-            value_to_text
+            variant_display_names
         })
     }
 }
@@ -402,16 +423,27 @@ enum SupportedNewType {
 
 /// Implements the [`Parameter`] trait for a parameter type.
 /// The type must be an enum or a tuple struct with a single bool, f32, i32 or u32 field.
-/// The following optional attributes can be provided:
-/// - name: string literal (default: name of the parameter)
-/// - default: 
-///     - boolean type: bool literal (default: false)
-///     - enum type: string literal (default: first variant)
-///     - numeric types: float literal (default: 1.0)
-/// - min: float literal (default: 0.0, not for bools and enums)
-/// - max: float literal (default: 1.0, not for bools and enums)
-/// - text_to_value: expression refering to a [`fn(&str) -> Option<f64>`] (default: built-in float parsing)
-/// - value_to_text: expression refering to a [`fn(f64, &mut impl std::fmt::Write) -> bool`] (default: built-in float formatting)
+/// A set of optional attributes can be provided depending on the type:
+/// ## Enum
+/// - name: string literal (default: name of the enum)
+/// - default: a string literal referring to a variant name (default: first variant)
+/// - variant_display_names: an array expression of string literals, e.g. `["a", "b", "c"]` (default: enum variant names)
+/// ## Tuple struct
+/// ### bool
+/// - name: a string literal (default: name of the struct)
+/// - default: a bool literal (default: `false`)
+/// ### f32, i32, u32
+/// - name: a string literal (default: name of the struct)
+/// - default: a float or int literal (default: `1.0`)
+/// - min: a float or int literal (default: `0.0`)
+/// - max: a float or int literal (default: `1.0`)
+/// - text_to_value: an expression referring to a `fn(&str) -> Option<f64>` (default: built-in float parsing)
+/// - value_to_text: an expression referring to a `fn(f64, &mut impl std::fmt::Write) -> bool` (default: built-in float formatting)
+/// # Example
+/// ```
+/// #[parameter(min = 0, max = 100, default = 100)]
+/// struct Volume(f32);
+/// ```
 #[proc_macro_attribute]
 pub fn parameter(attr: TokenStream, input: TokenStream) -> TokenStream {
     parameter_impl(attr, input).unwrap_or_else(|e| TokenStream::from(e.into_compile_error()))
@@ -420,7 +452,7 @@ pub fn parameter(attr: TokenStream, input: TokenStream) -> TokenStream {
 // a separate function with error propagation
 fn parameter_impl(attr: TokenStream, input: TokenStream) -> Result<TokenStream, syn::Error> {
     const PARAMETER_TYPE_VALIDATION_MESSAGE: &'static str = "type must be a tuple struct with a single bool, f32, i32 or u32 field";
-    let item = syn::parse::<syn::Item>(input)?;    
+    let mut item = syn::parse::<syn::Item>(input)?;    
     match item {
         Item::Struct(ref s) => {
             let ItemStruct { ident, fields: Fields::Unnamed(FieldsUnnamed { unnamed, .. }), .. } = s else {
@@ -566,7 +598,7 @@ fn parameter_impl(attr: TokenStream, input: TokenStream) -> Result<TokenStream, 
 
             Ok(TokenStream::from(implementation))
         },
-        Item::Enum(ref e) => {
+        Item::Enum(ref mut e) => {
             let (variant_names, variant_values): (Vec<_>, Vec<_>) = 
                 e
                     .variants
@@ -589,60 +621,51 @@ fn parameter_impl(attr: TokenStream, input: TokenStream) -> Result<TokenStream, 
 
             let max_value = (variant_names.len() - 1) as f32;
             
-            let EnumParameterAttrs { name, default_value, text_to_value, value_to_text } = EnumParameterAttrs::from_input_and_variants(attr, &variant_names)?;
+            let EnumParameterAttrs { name, default_value, variant_display_names } = EnumParameterAttrs::from_input_and_variants(attr, &variant_names)?;
 
             let enum_name = &e.ident;
             let name = name.unwrap_or(enum_name.to_string());
             let default_value = default_value.unwrap_or(0f32);
             let min_value = 0f32;
-            let max_value = max_value;                    
+            let max_value = max_value;       
+            
+            let variant_names = variant_display_names.unwrap_or(variant_names);             
 
-            let text_to_value = if let Some(expr) = text_to_value {
-                quote! {
-                    #[inline]
-                    fn text_to_value(text: &str) -> Option<f64> {
-                        #expr(text) 
-                    }
-                }
-            } else {
-                let variant_names_lowercase: Vec<_> = 
-                    variant_names
-                        .iter()
-                        .map(|name| name.to_lowercase())
-                        .collect();
-                quote! {
-                    #[inline]
-                    fn text_to_value(text: &str) -> Option<f64> {
-                        match text.to_lowercase().as_str() {
-                            #(#variant_names_lowercase => Some(#variant_values),)*
-                            _ => None
-                        }
+            let variant_names_lowercase: Vec<_> = 
+                variant_names
+                    .iter()
+                    .map(|name| name.to_lowercase())
+                    .collect();
+
+            let text_to_value = quote! {
+                #[inline]
+                fn text_to_value(text: &str) -> Option<f64> {
+                    match text.to_lowercase().as_str() {
+                        #(#variant_names_lowercase => Some(#variant_values),)*
+                        _ => None
                     }
                 }
             };
 
-            let value_to_text = if let Some(expr) = value_to_text {
-                quote! { 
-                    #[inline]
-                    fn value_to_text(value: f64, writer: &mut impl std::fmt::Write) -> bool {
-                        #expr(value, writer)
-                    } 
-                }
-            } else {
-                quote! { 
-                    #[inline]
-                    fn value_to_text(value: f64, writer: &mut impl std::fmt::Write) -> bool {
-                        let value_str = match value {
-                            #(#variant_values => #variant_names,)*
-                            _ => return false
-                        };
-                        write!(writer, "{value_str}").is_ok()
-                    }
+            let value_to_text = quote! { 
+                #[inline]
+                fn value_to_text(value: f64, writer: &mut impl std::fmt::Write) -> bool {
+                    let value_str = match value {
+                        #(#variant_values => #variant_names,)*
+                        _ => return false
+                    };
+                    write!(writer, "{value_str}").is_ok()
                 }
             };
+
+            let default_variant = e.variants.iter_mut().nth(default_value as usize).unwrap();
+            let default_attribute: Attribute = parse_quote! {
+                #[default]
+            };
+            default_variant.attrs.push(default_attribute);
     
             let implementation = quote! {
-                #[derive(Copy, Clone)]
+                #[derive(Copy, Clone, Default)]
                 #[repr(u32)]
                 #e
     
