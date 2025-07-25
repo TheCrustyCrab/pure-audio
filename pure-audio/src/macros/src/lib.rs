@@ -440,7 +440,7 @@ enum SupportedNewType {
 /// - text_to_value: an expression referring to a `fn(&str) -> Option<f64>` (default: built-in float parsing)
 /// - value_to_text: an expression referring to a `fn(f64, &mut impl std::fmt::Write) -> bool` (default: built-in float formatting)
 /// # Example
-/// ```
+/// ```rust,ignore
 /// #[parameter(min = 0, max = 100, default = 100)]
 /// struct Volume(f32);
 /// ```
