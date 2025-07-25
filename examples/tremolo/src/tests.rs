@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use pure_audio::{IsPlaying, MonoEffectData, OutEventDispatcher, OutEvents, State, Tempo};
+    use pure_audio::{Event, IsPlaying, MonoEffectData, OutEventDispatcher, OutEvents, State, Tempo};
     use crate::{process, Depth, Rate, Shape, LFO};
 
     struct MockOutEventDispatcher {}
@@ -118,11 +118,19 @@ mod tests {
 
         let mut lfo = LFO::default();
         lfo.activate(SAMPLE_RATE as f64, FRAME_LENGTH, FRAME_LENGTH);
-        lfo.set_rate(rate);
-        lfo.set_depth(depth.0);
 
         let input = [1.0; FRAME_LENGTH]; // constant 1 to reveal the lfo wave
         let mut output = [0.0; FRAME_LENGTH];
+
+        // first call: notify params changed
+        let data = MonoEffectData::<LFO> {
+            events: &[Event::ParamsChanged],
+            input: &input,
+            output: &mut output,
+            out_events: OutEvents::new(&MockOutEventDispatcher {}),
+            state: &mut lfo
+        };
+        process(data, IsPlaying(false), Tempo(TEMPO), rate, depth, shape);
 
         // a few process calls while not playing
         for _ in 0..3 {
