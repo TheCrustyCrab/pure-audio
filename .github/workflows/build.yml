@@ -36,11 +36,23 @@ jobs:
                 cargo build --target wasm32-unknown-unknown --release
                 wasm-bindgen ../../target/wasm32-unknown-unknown/release/freeverb.wasm --target web --out-dir ../webdemo/src/assets/freeverb
 
+            - name: Build gain example
+              working-directory: examples/gain
+              run: |
+                cargo build --target wasm32-unknown-unknown --release
+                wasm-bindgen ../../target/wasm32-unknown-unknown/release/gain.wasm --target web --out-dir ../webdemo/src/assets/gain
+
             - name: Build oscillator example
               working-directory: examples/oscillator
               run: |
                 cargo build --target wasm32-unknown-unknown --release
                 wasm-bindgen ../../target/wasm32-unknown-unknown/release/oscillator.wasm --target web --out-dir ../webdemo/src/assets/oscillator
+
+            - name: Build pan example
+              working-directory: examples/pan
+              run: |
+                cargo build --target wasm32-unknown-unknown --release
+                wasm-bindgen ../../target/wasm32-unknown-unknown/release/pan.wasm --target web --out-dir ../webdemo/src/assets/pan
 
             - name: Build surge-synth-saw-demo example
               working-directory: examples/surge-synth-saw-demo

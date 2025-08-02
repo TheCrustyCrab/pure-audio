@@ -3,13 +3,14 @@ import { default as initMidiFileParser, midiToSimpleTracks, SimpleMidiEvent, Sim
 import useWasm from "../../hooks/useWasm";
 import useInterval from "../../hooks/useInterval";
 import useEventBus from "../../hooks/useEventBus";
+import { AudioGraph } from "../../audio-graph";
 
 interface MidiPlayerProps {
-    audioContext?: AudioContext | null, 
+    audioGraph: AudioGraph, 
     midiFile: { name: string, data: Uint8Array } | undefined
 }
 
-function MidiPlayer({ audioContext, midiFile }: MidiPlayerProps) {
+function MidiPlayer({ audioGraph, midiFile }: MidiPlayerProps) {
     const [selectedMidiTrackIndex, setSelectedMidiTrackIndex] = useState<number>();
     const loadedMidiTracks = useMemo(() => {
         let midiTracks: SimpleMidiTrack[] = [];
@@ -61,11 +62,11 @@ function MidiPlayer({ audioContext, midiFile }: MidiPlayerProps) {
     }
 
     const scheduleMidiEvents = () => {
-        const elapsedSeconds = audioContext!.currentTime - playMidiStartTime!;
+        const elapsedSeconds = audioGraph.currentTime - playMidiStartTime!;
         const elapsedBeats = elapsedSeconds * beatsPerSecond;
         setElapsedTimeInBeats(current => current + interval / 1000 * beatsPerSecond);
 
-        while (nextEvent.current !== null && nextEvent.current.time < audioContext!.currentTime + scheduleAheadTime) {
+        while (nextEvent.current !== null && nextEvent.current.time < audioGraph.currentTime + scheduleAheadTime) {
             if (pausingTime === null || nextEvent.current.type === "off") {
                 const { time, key, velocity } = nextEvent.current;
                 const type = nextEvent.current.type === "on" ? "noteScheduleOn" : "noteScheduleOff";
@@ -117,26 +118,26 @@ function MidiPlayer({ audioContext, midiFile }: MidiPlayerProps) {
             return;
         }
 
-        setPlayMidiStartTime(audioContext!.currentTime);
-        eventBus.publish("hostStartPlaying", {});
+        setPlayMidiStartTime(audioGraph.currentTime);
+        eventBus.publish("hostStartPlaying", undefined);
     }
 
     const pauseMidi = () => {
-        setPausingTime(audioContext!.currentTime);
-        eventBus.publish("hostStopPlaying", {});
+        setPausingTime(audioGraph.currentTime);
+        eventBus.publish("hostStopPlaying", undefined);
     }
 
     const stopMidi = () => {
         setPlayMidiStartTime(null);
 
         scheduledNotes.current.forEach(note => {
-            eventBus.publish("noteScheduleOff", { time: audioContext!.currentTime, key: note, velocity: 0 });
+            eventBus.publish("noteScheduleOff", { time: audioGraph.currentTime, key: note, velocity: 0 });
         });
         scheduledNotes.current.clear();
 
         setElapsedTimeInBeats(0);
         eventIterator.current = null;
-        eventBus.publish("hostStopPlaying", {});
+        eventBus.publish("hostStopPlaying", undefined);
     }
 
     if (!midiFileParserLoaded) {
@@ -165,8 +166,11 @@ function MidiPlayer({ audioContext, midiFile }: MidiPlayerProps) {
                                 )
                             }
                         </select>
-                        <button onClick={playMidiStartTime === null ? playMidi : pauseMidi}>{ playMidiStartTime === null ? "Play" : "Pause" }</button>
-                        <button onClick={stopMidi}>Stop</button>
+                        { playMidiStartTime === null 
+                            ? <button onClick={playMidi}>&#9654;&#65039;</button>                            
+                            : <button onClick={pauseMidi}>&#9208;&#65039;</button>                        
+                        }
+                        <button onClick={stopMidi}>&#9209;&#65039;</button>
                         <span>{Math.ceil(elapsedTimeInBeats)}</span>
                         <p>
                             Tempo <input type="number" min={60} max={150} defaultValue={130} onChange={handleTempoChange}></input>

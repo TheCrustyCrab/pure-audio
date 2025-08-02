@@ -1,0 +1,42 @@
+.container {
+  position: relative;
+}
+
+.preinit-overlay {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(2px);
+}
+
+.preinit-overlay > p {
+  position: absolute;
+  color: #a11dd5;
+  font-size: x-large;
+  transform: translate(-50%, -50%);
+  top: 50%;
+  left: 50%;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.preinit-overlay.hiding {
+  display: block;
+  animation: fadeOut 0.5s;
+  animation-fill-mode: forwards;
+}
+
+@keyframes fadeOut {
+  0% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}

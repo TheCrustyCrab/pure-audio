@@ -7,8 +7,8 @@ type NoteScheduleOffEvent = { time: number, key: number, velocity: number };
 type NoteScheduledOnTriggeredEvent = { key: number, velocity: number };
 type NoteScheduledOffTriggeredEvent = { key: number, velocity: number };
 type HostTempoChangeEvent = { tempo: number };
-type HostStartPlayingEvent = {};
-type HostStopPlayingEvent = {};
+type HostStartPlayingEvent = void;
+type HostStopPlayingEvent = void;
 
 type Event = NoteOnEvent | NoteOffEvent | NoteScheduleOnEvent | NoteScheduleOffEvent | NoteScheduledOnTriggeredEvent | NoteScheduledOffTriggeredEvent | HostTempoChangeEvent | HostStartPlayingEvent | HostStopPlayingEvent;
 

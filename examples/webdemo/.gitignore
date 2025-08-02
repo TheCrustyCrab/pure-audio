@@ -24,7 +24,9 @@ dist-ssr
 *.sw?
 
 src/assets/freeverb
+src/assets/gain
 src/assets/midi-file-parser
 src/assets/oscillator
+src/assets/pan
 src/assets/surge-synth-saw-demo
 src/assets/tremolo
