@@ -33,7 +33,7 @@ impl Voice {
 }
 
 #[derive(Default)]
-pub struct OscillatorState {
+struct OscillatorState {
     sample_rate: f64,
     voices: HashMap<u8, Voice>
 }
@@ -44,7 +44,7 @@ impl State for OscillatorState {
     }
 }
 
-pub fn process(
+fn process(
     MonoSynthData {
         output,
         events,

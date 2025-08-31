@@ -11,7 +11,7 @@ mod tests;
 const MAX_VOICES: usize = 64;
 const MAX_UNISON: usize = 7;
 
-#[parameter(min = 0, max = 7, default = 3, value_to_text = uni_value_to_text)]
+#[parameter(min = 1, max = 7, default = 3, value_to_text = uni_value_to_text)]
 struct UnisonCount(u32);
 
 fn uni_value_to_text(value: f64, writer: &mut impl Write) -> bool {
