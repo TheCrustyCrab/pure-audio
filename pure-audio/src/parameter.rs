@@ -57,7 +57,7 @@ pub trait Parameter {
         text.parse::<f64>().ok()
     }
     fn value_to_text(value: f64, writer: &mut impl Write) -> bool {
-        write!(writer, "{value}").is_ok()
+        write!(writer, "{value:.2}").is_ok()
     }
 }
 
