@@ -3,6 +3,7 @@ import { PureAudioWorkletNode } from "../../assets/oscillator/oscillator"; // to
 import useEventBus from "../../hooks/useEventBus";
 import { useAsyncEffect } from "../../hooks/useAsyncEffect";
 import { AudioGraph } from "../../audio-graph";
+import styles from "./styles.module.css";
 
 // the dynamic imports below are crucial to prevent vite from unintentionally removing seemingly unused functions, such as createWasmProcessor, during production build
 const synthModules = {
@@ -34,7 +35,7 @@ function Synth({ audioGraph }: { audioGraph: AudioGraph }) {
             eventBus.subscribe("noteOn", handleNoteOn);
             eventBus.subscribe("noteScheduleOff", handleNoteScheduleOff);
             eventBus.subscribe("noteScheduleOn", handleNoteScheduleOn);
-            
+
             await loadSynth(activeSynth);
         },
         async () => {
@@ -76,7 +77,7 @@ function Synth({ audioGraph }: { audioGraph: AudioGraph }) {
     const handleNoteScheduleOff = ({ time, key, velocity }: { time: number, key: number, velocity: number }) => {
         audioNode.current?.scheduleNoteOff(time, key, velocity)
     };
-    
+
     const handleSelectSynthChange = async (evt: ChangeEvent<HTMLSelectElement>) => {
         const synthModule = evt.target.value as SynthType;
         await loadSynth(synthModule);
@@ -108,16 +109,19 @@ function Synth({ audioGraph }: { audioGraph: AudioGraph }) {
     }
 
     return (
-        <>
-            <select onChange={handleSelectSynthChange} value={activeSynth}>
-                {
-                    Object.keys(synthModules).map(synthModule =>
-                        <option key={synthModule} value={synthModule}>{synthModule}</option>
-                    )
-                }
-            </select>
-            <div ref={synthParameterControl} />
-        </>
+        <div className={styles.synth}>
+            <div className={styles["synth-select"]}>
+                Synth:
+                <select name="synth" onChange={handleSelectSynthChange} value={activeSynth}>
+                    {
+                        Object.keys(synthModules).map(synthModule =>
+                            <option key={synthModule} value={synthModule}>{synthModule}</option>
+                        )
+                    }
+                </select>
+            </div>
+            <div className={styles["synth-parameters"]} ref={synthParameterControl} />
+        </div>
     );
 }
 

@@ -18,6 +18,15 @@ extern "C" {
         velocity: u8,
     ) -> SimpleMidiEvent;
     
+    #[wasm_bindgen (extends = :: js_sys :: Object , js_name = SimpleMidiTimeSignature , typescript_type = "SimpleMidiTimeSignature")]
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub type SimpleMidiTimeSignature;
+    #[wasm_bindgen(constructor, js_class = "SimpleMidiTimeSignature")]
+    pub fn new(
+        numerator: u8,
+        denominator: u8
+    ) -> SimpleMidiTimeSignature;
+    
     #[wasm_bindgen (extends = :: js_sys :: Object , js_name = SimpleMidiTrack , typescript_type = "SimpleMidiTrack")]
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub type SimpleMidiTrack;
@@ -25,6 +34,7 @@ extern "C" {
     pub fn new(
         tempo: Option<f32>,
         beats: u32,
+        time_signature: Option<SimpleMidiTimeSignature>,
         events: Vec<SimpleMidiEvent>
     ) -> SimpleMidiTrack;
 }
@@ -182,7 +192,7 @@ enum MetaEvent {
     EndOfTrack,
     TempoSetting(f32),
     SmpteOffset,
-    TimeSignature(String),
+    TimeSignature((u8, u8)),
     KeySignature,
     SequencerSpecificEvent
 }
@@ -341,7 +351,7 @@ impl MetaEvent {
                 reader.read_exact(&mut buf_1_byte).or(Err("Incorrect track"))?;
                 bytes_read += 1;
 
-                Ok((bytes_read, MetaEvent::TimeSignature(format!("{numerator}/{denominator}"))))
+                Ok((bytes_read, MetaEvent::TimeSignature((numerator, denominator))))
             },
             0x59 => {
                 // key signature
@@ -484,14 +494,19 @@ impl Midi {
             .map(|track| {
                 let mut events = vec![];
                 let mut time_in_beats = 0.0;
+                let mut time_signature = None;
                 let mut tempo = None;
                 
                 for TrackEvent { v_time, event } in &track.track_events {
                     time_in_beats += *v_time as f32 / division as f32;
 
-                    if let Event::Meta(MetaEvent::TempoSetting(t)) = event {
-                        tempo = Some(*t);
+                    if let &Event::Meta(MetaEvent::TempoSetting(t)) = event {
+                        tempo = Some(t);
                         continue;
+                    }
+
+                    if let &Event::Meta(MetaEvent::TimeSignature((numerator, denominator))) = event {
+                        time_signature = Some(SimpleMidiTimeSignature::new(numerator, denominator))
                     }
 
                     let Event::Midi(midi_event) = event else {
@@ -507,7 +522,7 @@ impl Midi {
                     events.push(SimpleMidiEvent::new(time_in_beats, event_type.into(), *key, *velocity));
                 }
 
-                SimpleMidiTrack::new(tempo, time_in_beats.ceil() as u32, events)
+                SimpleMidiTrack::new(tempo, time_in_beats.ceil() as u32, time_signature, events)
             })
             .collect()
     }

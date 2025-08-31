@@ -7,10 +7,18 @@ export class SimpleMidiEvent {
     }
 }
 
+export class SimpleMidiTimeSignature {
+    constructor(numerator, denominator) {
+        this.numerator = numerator;
+        this.denominator = denominator;
+    }
+}
+
 export class SimpleMidiTrack {
-    constructor(tempo, beats, events) {
+    constructor(tempo, beats, timeSignature, events) {
         this.tempo = tempo;
         this.beats = beats;
+        this.timeSignature = timeSignature;
         this.events = events;
     }
 }

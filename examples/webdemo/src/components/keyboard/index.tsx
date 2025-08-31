@@ -1,15 +1,13 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { Octave } from './octave';
 import useEventBus from '../../hooks/useEventBus';
-
-enum MidiStatus {
-    NoteOff = 0b1000,
-    NoteOn = 0b1001
-}
+import styles from './styles.module.css';
+import SvgDefinitions from '../svg-definitions';
 
 interface KeyboardProps {
     minOctave: number,
-    octaveCount: number
+    octaveCount: number,
+    scale: number
 }
 
 enum PointerChordMode {
@@ -28,32 +26,32 @@ const chordKeyOffsets: { [key in PointerChordMode]: Array<number> } = {
     [PointerChordMode.Sus4]: [0, 5, 7]
 }
 
-function Keyboard({ minOctave, octaveCount }: KeyboardProps) {
-    const midiAccess = useRef<MIDIAccess>(null);
-    const midiInputs = useRef<MIDIInput[]>([]);
-    const [midiInputNames, setMidiInputNames] = useState<string[]>([]);
-    const [selectedMidiInputIndex, setSelectedMidiInputIndex] = useState<number>();
+const SVG_KEY_WIDTH = 175;
+
+function Keyboard({ minOctave, octaveCount, scale }: KeyboardProps) {
     const [pointerChordMode, setPointerChordMode] = useState<PointerChordMode>(PointerChordMode.Note);
     const pointerActiveKey = useRef<number>(null);
     const [activeNotes, setActiveNotes] = useState<number[]>([]);
+    const [showKeyLabels, setShowKeyLabels] = useState(false);
+    const [canScrollLeft, setCanScrollLeft] = useState(true);
+    const [canScrollRight, setCanScrollRight] = useState(true);
+    const octavesElement = useRef<HTMLDivElement>(null);
     const eventBus = useEventBus();
 
     useEffect(() => {
-        // initial activation
-        const initMidi = async () => {
-            midiAccess.current = await navigator.requestMIDIAccess();
-            midiAccess.current.addEventListener("statechange", handleMidiStateChange);
-            handleMidiStateChange.call(midiAccess.current);
-        };
-
-        initMidi();
         eventBus.subscribe("noteScheduledOffTriggered", handleNoteScheduledOffTriggered);
         eventBus.subscribe("noteScheduledOnTriggered", handleNoteScheduledOnTriggered);
+        eventBus.subscribe("midiDeviceNoteOff", handleNoteScheduledOffTriggered);
+        eventBus.subscribe("midiDeviceNoteOn", handleNoteScheduledOnTriggered);
+        window.addEventListener("resize", handleWindowResize);
+        handleWindowResize();
 
         return () => {
-            midiAccess.current?.removeEventListener("statechange", handleMidiStateChange);
             eventBus.unsubscribe("noteScheduledOffTriggered", handleNoteScheduledOffTriggered);
             eventBus.unsubscribe("noteScheduledOnTriggered", handleNoteScheduledOnTriggered);
+            eventBus.unsubscribe("midiDeviceNoteOff", handleNoteScheduledOffTriggered);
+            eventBus.unsubscribe("midiDeviceNoteOn", handleNoteScheduledOnTriggered);
+            window.removeEventListener("resize", handleWindowResize);
         };
     }, []);
 
@@ -66,60 +64,6 @@ function Keyboard({ minOctave, octaveCount }: KeyboardProps) {
             document.body.removeEventListener("pointercancel", handlePointerUpOrCancel);
         };
     }, [minOctave, octaveCount, activeNotes]);
-
-    const handleMidiStateChange = useCallback(function (this: MIDIAccess) {
-        const inputs = [...this.inputs.values()];
-        // selectedMidiInputIndex is always undefined due to the overridden 'this'
-        setSelectedMidiInputIndex(currentSelectedMidiInputIndex => {
-            let newIndex: number | undefined = currentSelectedMidiInputIndex;
-            if (inputs.length > 0) {
-                if (currentSelectedMidiInputIndex === undefined) {
-                    selectMidiInput(inputs[0]);
-                }
-                midiInputs.current = inputs;
-            } else {            
-                newIndex = undefined;
-            }
-
-            setMidiInputNames(inputs.map(input => input.name || ""));    
-            return newIndex;
-        });
-    }, []);
-
-    const handleSelectMidiInput = (index: number) => {
-        if (selectedMidiInputIndex !== undefined) {
-            const oldSelectedInput = midiInputs.current[selectedMidiInputIndex];
-            oldSelectedInput.onmidimessage = null;
-        }
-        const selectedInput = midiInputs.current[index];
-        selectMidiInput(selectedInput);
-        setSelectedMidiInputIndex(index);
-    };
-
-    const selectMidiInput = (input: MIDIInput) => {
-        input.onmidimessage = handleMidiMessage;
-    };
-
-    const handleMidiMessage = (midiMessage: MIDIMessageEvent) => {
-        // console.log(midiMessage.data);
-        const data = [...midiMessage.data!.values()];
-        if (data.length === 3) {
-            const [status, data1, data2] = data;
-            if (status >> 4 === MidiStatus.NoteOff) {
-                const key = data1;
-                const velocity = data2;
-                setActiveNotes(current => current.filter(activeNote => activeNote !== key));
-                eventBus.publish("noteOff", { key, velocity });
-                console.log(`Midi note off ${key} with velocity ${velocity}`);
-            } else if (status >> 4 === MidiStatus.NoteOn) {
-                const key = data1;
-                const velocity = data2;
-                setActiveNotes(current => [...current, key]);
-                eventBus.publish("noteOn", { key, velocity });
-                console.log(`Midi note on ${key} with velocity ${velocity}`);
-            }
-        }
-    }
 
     const handleNoteOn = (key: number) => {
         document.body.addEventListener("pointermove", handlePointerMove);
@@ -173,17 +117,76 @@ function Keyboard({ minOctave, octaveCount }: KeyboardProps) {
         setActiveNotes(current => [...current, key]);
     }
 
+    const handleScrollLeftClick = () => {
+        const overflowWidth = octavesElement.current!.scrollWidth - octavesElement.current!.offsetWidth;
+        const canScrollLeftAfterThisScroll = octavesElement.current!.scrollLeft + SVG_KEY_WIDTH < overflowWidth;
+        const canScrollRightAfterThisScroll = overflowWidth > 0 && octavesElement.current!.scrollLeft + SVG_KEY_WIDTH > 0;
+        // ideally, we should be able to lock the scroll buttons while the scrollBy animation lasts
+        // unfortunately, there's no way to get notified when the animation ends, it doesn't trigger the onAnimationEnd event
+        // so it's possible to spam the scroll buttons and get inconsistent behavior
+        octavesElement.current!.scrollBy({
+            behavior: 'smooth',
+            left: SVG_KEY_WIDTH
+        });
+        setCanScrollLeft(canScrollLeftAfterThisScroll);
+        setCanScrollRight(canScrollRightAfterThisScroll);
+    }
+
+    const handleScrollRightClick = () => {
+        const overflowWidth = octavesElement.current!.scrollWidth - octavesElement.current!.offsetWidth;
+        const canScrollLeftAfterThisScroll = octavesElement.current!.scrollLeft - SVG_KEY_WIDTH < overflowWidth;
+        const canScrollRightAfterThisScroll = overflowWidth > 0 && octavesElement.current!.scrollLeft - SVG_KEY_WIDTH > 0;
+        octavesElement.current!.scrollBy({
+            behavior: 'smooth',
+            left: -SVG_KEY_WIDTH
+        });
+        setCanScrollLeft(canScrollLeftAfterThisScroll);
+        setCanScrollRight(canScrollRightAfterThisScroll);
+    }
+
+    const handleWindowResize = () => {
+        const overflowWidth = octavesElement.current!.scrollWidth - octavesElement.current!.offsetWidth;
+        const canScrollLeft = octavesElement.current!.scrollLeft < overflowWidth;
+        const canScrollRight = overflowWidth > 0 && octavesElement.current!.scrollLeft > 0;
+        setCanScrollLeft(canScrollLeft);
+        setCanScrollRight(canScrollRight);
+    }
+
     return (
-        <>
+        <div>
+            <SvgDefinitions>
+                <polygon id="whiteLeftKey" points="0,0 0,100 25,100 25,60 20,60 20,0" />
+                <polygon id="whiteMiddleKey" points="5,0 5,60 0,60 0,100 25,100 25,60 20,60 20,0" />
+                <polygon id="whiteRightKey" points="5,0 5,60 0,60 0,100 25,100 25,60 25,60 25,0" />
+                <polygon id="blackKey" points="0,0 0,60 10,60 10,0" />
+
+                <g id="whiteLeftKeyOff" className={styles.white}>
+                    <use xlinkHref="#whiteLeftKey" />
+                </g>
+                <g id="whiteLeftKeyOn" className={`${styles.white} ${styles.on}`}>
+                    <use xlinkHref="#whiteLeftKey" />
+                </g>
+                <g id="whiteMiddleKeyOff" className={styles.white}>
+                    <use xlinkHref="#whiteMiddleKey" />
+                </g>
+                <g id="whiteMiddleKeyOn" className={`${styles.white} ${styles.on}`}>
+                    <use xlinkHref="#whiteMiddleKey" />
+                </g>
+                <g id="whiteRightKeyOff" className={styles.white}>
+                    <use xlinkHref="#whiteRightKey" />
+                </g>
+                <g id="whiteRightKeyOn" className={`${styles.white} ${styles.on}`}>
+                    <use xlinkHref="#whiteRightKey" />
+                </g>
+                <g id="blackKeyOff" className={`${styles.black}`}>
+                    <use xlinkHref="#blackKey" />
+                </g>
+                <g id="blackKeyOn" className={`${styles.black} ${styles.on}`}>
+                    <use xlinkHref="#blackKey" />
+                </g>
+            </SvgDefinitions>
             <div>
-                MIDI device:
-                <select onChange={(evt) => handleSelectMidiInput(parseInt(evt.target.value))}>
-                    {
-                        midiInputNames.map((name, i) => <option key={i} value={i}>{name}</option>)
-                    }
-                </select>
-            </div>
-            <div>
+                Chord mode:
                 {
                     [PointerChordMode.Note, PointerChordMode.Major, PointerChordMode.Minor, PointerChordMode.Sus2, PointerChordMode.Sus4].map(mode =>
                         <Fragment key={mode}>
@@ -193,13 +196,28 @@ function Keyboard({ minOctave, octaveCount }: KeyboardProps) {
                     )
                 }
             </div>
-            {
-                [...Array(octaveCount)].map((_, i) => {
-                    const octaveIndex = i + minOctave;
-                    return <Octave key={octaveIndex} index={octaveIndex} onNoteOn={handleNoteOn} activeNotes={activeNotes} />;
-                })
-            }
-        </>
+            <div>
+                <input type="checkbox" id="toggleKeyLabels" onChange={evt => setShowKeyLabels(evt.target.checked)} />
+                <label htmlFor="toggleKeyLabels">Key labels</label>
+            </div>
+            <hr />
+            <div className={styles.keyboard}>
+                <div className={styles["keyboard-octaves-scroll-arrow"]} style={{ visibility: canScrollRight ? "visible" : "hidden" }} onClick={handleScrollRightClick}>
+                    &lt;
+                </div>
+                <div ref={octavesElement} className={styles["keyboard-octaves"]}>
+                    {
+                        [...Array(octaveCount)].map((_, i) => {
+                            const octaveIndex = i + minOctave;
+                            return <Octave key={octaveIndex} index={octaveIndex} onNoteOn={handleNoteOn} activeNotes={activeNotes} scale={scale} showKeyLabels={showKeyLabels} />;
+                        })
+                    }
+                </div>
+                <div className={styles["keyboard-octaves-scroll-arrow"]} style={{ visibility: canScrollLeft ? "visible" : "hidden" }} onClick={handleScrollLeftClick}>
+                    &gt;
+                </div>
+            </div>
+        </div>
     )
 }
 

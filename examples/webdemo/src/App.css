@@ -1,14 +1,162 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+:root {
+    font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
+
+    color-scheme: light dark;
+    color: rgba(255, 255, 255, 0.87);
+    background-color: #242424;
+
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
-fieldset {
-  border-radius: 10px;
+body {
+    margin: 0;
 }
 
-legend {
-  font-weight: 600;
+label {
+    user-select: none;
+}
+
+.root {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+.menu-bar {
+    display: flex;
+    height: 40px;
+    width: 100%;
+    background-color: black;
+    justify-content: space-between;
+}
+
+.menu-bar-group1 {
+    flex-basis: 200px;
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    margin-left: 5px;
+}
+
+.menu-bar-group2 {
+    display: flex;
+    align-items: center;
+}
+
+.menu-bar-group3 {
+    flex-basis: 200px;
+    flex-grow: 1;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.menu-bar-group3-sub {
+    display: flex;
+    justify-content: space-between;
+}
+
+.menu-bar-group-item {
+    border-left: 1px solid white;
+    border-right: 1px solid white;
+    padding: 0 5px;
+}
+
+.tempo-input {
+    width: 2.5rem;
+}
+
+.workspace-root {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    align-items: center;
+}
+
+.workspace-wrapper {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+.workspace-effects {
+    display: flex;
+    flex-direction: column;
+    flex: 1 0 0;
+    overflow: hidden;
+    /* todo: fix scrollbar at overflow */
+}
+
+.workspace-effects-nodes {
+    display: flex;
+    overflow: hidden;
+}
+
+.workspace-effects-nodes-item {
+    border-right: 1px solid white;
+    padding: 0 5px;
+}
+
+.workspace-effects-nodes-item:last-child {
+    border-right: none;
+}
+
+.workspace-effects-nodes-item-header {
+    display: flex;
+    justify-content: space-between;
+}
+
+.workspace-keyboard {
+    margin-top: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+/* todo: calculate via SCSS? */
+/* media queries including +20px for scroll buttons */
+@media (min-width: 370px) {
+    .workspace-keyboard {
+        max-width: 370px;
+    }
+}
+
+@media (min-width: 545px) {
+    .workspace-keyboard {
+        max-width: 545px;
+    }
+}
+
+@media (min-width: 720px) {
+    .workspace-keyboard {
+        max-width: 720px;
+    }
+}
+
+@media (min-width: 895px) {
+    .workspace-keyboard {
+        max-width: 895px;
+    }
+}
+
+@media (min-width: 1070px) {
+    .workspace-keyboard {
+        max-width: 1070px;
+    }
+}
+
+@media (min-width: 1245px) {
+    .workspace-keyboard {
+        max-width: 1245px;
+    }
+}
+
+@media (min-width: 1420px) {
+    .workspace-keyboard {
+        max-width: 1420px;
+    }
 }

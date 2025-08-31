@@ -46,7 +46,13 @@ export class AudioGraph {
         const effectIndex = this._effectNodes.indexOf(node);
         if (effectIndex === 0) {
             this._synthNode?.disconnect(this._synthDestinationNode);
-            this._synthDestinationNode = this._audioContext.destination;
+            const nextEffectNode = this._effectNodes[effectIndex + 1];
+            if (nextEffectNode) {
+                this._synthDestinationNode = nextEffectNode;
+            } else {
+                this._synthDestinationNode = this._audioContext.destination;
+            }
+
             this._synthNode?.connect(this._synthDestinationNode);
         } else {
             const previousEffectNode = this._effectNodes[effectIndex - 1];

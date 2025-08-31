@@ -6,25 +6,26 @@ import { AudioGraph } from "../../audio-graph";
 const effectModules = {
     "Freeverb": {
         importEsmodule: () => import("../../assets/freeverb/freeverb"),
-        configureNode: (_node: PureAudioWorkletNode) => {}
+        configureNode: (_node: PureAudioWorkletNode, _tempo: number) => { }
     },
     "Gain": {
         importEsmodule: () => import("../../assets/gain/gain"),
-        configureNode: (_node: PureAudioWorkletNode) => {}
+        configureNode: (_node: PureAudioWorkletNode, _tempo: number) => { }
     },
     "Pan": {
         importEsmodule: () => import("../../assets/pan/pan"),
-        configureNode: (_node: PureAudioWorkletNode) => {}
+        configureNode: (_node: PureAudioWorkletNode, _tempo: number) => { }
     },
     "Tremolo": {
         importEsmodule: () => import("../../assets/tremolo/tremolo"),
-        configureNode: (node: PureAudioWorkletNode) => node.setHostTempo(130)
+        configureNode: (node: PureAudioWorkletNode, tempo: number) => node.setHostTempo(tempo)
     }
 };
 
 type EffectType = keyof typeof effectModules;
 
 interface EffectEntry {
+    id: string, // UUID for correct change detection: effect name and index are not unique
     type: EffectType,
     enabled: boolean
 }
@@ -35,7 +36,7 @@ interface EffectNodeControl {
     isLoading: boolean
 }
 
-function EffectRack({ audioGraph }: { audioGraph: AudioGraph }) {
+function EffectRack({ audioGraph, tempo }: { audioGraph: AudioGraph, tempo: number }) {
     const [addEffectEntryType, setAddEffectEntryType] = useState<EffectType>("Freeverb");
     const effectNodeControls = useRef<EffectNodeControl[]>([]);
     const [effectEntries, setEffectEntries] = useState<EffectEntry[]>([]);
@@ -54,6 +55,10 @@ function EffectRack({ audioGraph }: { audioGraph: AudioGraph }) {
     }, []);
 
     const handleHostTempoChange = ({ tempo }: { tempo: number }) => {
+        if (isNaN(tempo)) {
+            return;
+        }
+
         effectNodeControls.current.map(effectNodeControl => effectNodeControl.audioNode).forEach(node => node?.setHostTempo(tempo));
     }
 
@@ -67,13 +72,16 @@ function EffectRack({ audioGraph }: { audioGraph: AudioGraph }) {
 
     const handleAddEffectEntryClick = () => {
         effectNodeControls.current[effectEntries.length] = { audioNode: null, control: null, isLoading: false };
-        setEffectEntries(currentEntries => [...currentEntries, { enabled: true, type: addEffectEntryType }]);
+        setEffectEntries(currentEntries => [...currentEntries, { id: crypto.randomUUID(), enabled: true, type: addEffectEntryType }]);
     }
 
     const handleRemoveEffectEntryClick = (index: number) => {
         audioGraph.removeEffect(effectNodeControls.current[index].audioNode!);
         effectNodeControls.current.splice(index, 1);
-        setEffectEntries(currentEffectEntries => currentEffectEntries.filter((_, i) => i !== index));
+        setEffectEntries(currentEffectEntries => {
+            const effectsToKeep = currentEffectEntries.filter((_, i) => i !== index);
+            return effectsToKeep;
+        });
     }
 
     const initAudioNodeForEntry = async (type: EffectType, effectNodeControl: EffectNodeControl, control: HTMLDivElement) => {
@@ -85,40 +93,51 @@ function EffectRack({ audioGraph }: { audioGraph: AudioGraph }) {
         } = await importEsmodule();
         await init();
         const audioNode = await createAudioNodeWithGeneratedParameterUI(audioGraph.audioContext, control);
-        configureNode(audioNode);
+        configureNode(audioNode, tempo);
         effectNodeControl.audioNode = audioNode;
         audioGraph.appendEffect(audioNode);
     }
 
     return (
         <>
-            <select value={addEffectEntryType} onChange={evt => setAddEffectEntryType(evt.target.value as EffectType)}>
+            <div>
+                Add effect:
+                <select name="effectType" value={addEffectEntryType} onChange={evt => setAddEffectEntryType(evt.target.value as EffectType)}>
+                    {
+                        Object.keys(effectModules).map(key =>
+                            <option key={key} value={key}>{key}</option>
+                        )
+                    }
+                </select>
+                <button onClick={handleAddEffectEntryClick}>&#10133;</button>
+            </div>
+            <div>
+                <hr />
+            </div>
+            <div className="workspace-effects-nodes">
                 {
-                    Object.keys(effectModules).map(key =>
-                        <option key={key} value={key}>{key}</option>
+                    effectEntries.map((effectEntry, index) =>
+                        <div key={effectEntry.id} className="workspace-effects-nodes-item">
+                            <div className="workspace-effects-nodes-item-header">
+                                {effectEntry.type}
+                                <button onClick={() => handleRemoveEffectEntryClick(index)}>&#10134;</button>
+                            </div>
+                            <hr />
+                            <div ref={el => {
+                                if (el == null) {
+                                    return;
+                                }
+
+                                const effectNodeControl = effectNodeControls.current[index];
+                                effectNodeControl.control = el;
+                                if (!effectNodeControl.isLoading) {
+                                    initAudioNodeForEntry(effectEntry.type, effectNodeControl, el);
+                                }
+                            }}></div>
+                        </div>
                     )
                 }
-            </select>
-            <button onClick={handleAddEffectEntryClick}>&#10133;</button>
-            {
-                effectEntries.map((effectEntry, index) =>
-                    <div key={index}>
-                        <p>{effectEntry.type}</p>
-                        <button onClick={() => handleRemoveEffectEntryClick(index)}>&#10134;</button>
-                        <div ref={el => {
-                            if (el == null) {
-                                return;
-                            }
-
-                            const effectNodeControl = effectNodeControls.current[index];
-                            effectNodeControl.control = el;
-                            if (!effectNodeControl.isLoading) {
-                                initAudioNodeForEntry(effectEntry.type, effectNodeControl, el);
-                            }
-                        }}></div>
-                    </div>
-                )
-            }
+            </div>
         </>
     );
 }

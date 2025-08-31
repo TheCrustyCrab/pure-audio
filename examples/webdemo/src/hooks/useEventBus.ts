@@ -19,6 +19,8 @@ interface EventTypeMap {
     "noteScheduleOff": NoteScheduleOffEvent,
     "noteScheduledOnTriggered": NoteScheduledOnTriggeredEvent,
     "noteScheduledOffTriggered": NoteScheduledOffTriggeredEvent,
+    "midiDeviceNoteOn": NoteOnEvent,
+    "midiDeviceNoteOff": NoteOffEvent,
     "hostTempoChange": HostTempoChangeEvent,
     "hostStartPlaying": HostStartPlayingEvent,
     "hostStopPlaying": HostStopPlayingEvent
@@ -35,6 +37,8 @@ export class EventBus {
             ["noteScheduleOff", []],
             ["noteScheduledOnTriggered", []],
             ["noteScheduledOffTriggered", []],
+            ["midiDeviceNoteOn", []],
+            ["midiDeviceNoteOff", []],
             ["hostTempoChange", []],
             ["hostStartPlaying", []],
             ["hostStopPlaying", []]
