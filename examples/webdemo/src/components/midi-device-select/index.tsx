@@ -68,15 +68,13 @@ function MidiDeviceSelect() {
             if (status >> 4 === MidiStatus.NoteOff) {
                 const key = data1;
                 const velocity = data2;
-                eventBus.publish("midiDeviceNoteOff", { key, velocity });
+                eventBus.publish("midiNoteOff", { key, velocity });
                 eventBus.publish("noteOff", { key, velocity });
-                console.log(`Midi note off ${key} with velocity ${velocity}`);
             } else if (status >> 4 === MidiStatus.NoteOn) {
                 const key = data1;
                 const velocity = data2;
-                eventBus.publish("midiDeviceNoteOn", { key, velocity });
+                eventBus.publish("midiNoteOn", { key, velocity });
                 eventBus.publish("noteOn", { key, velocity });
-                console.log(`Midi note on ${key} with velocity ${velocity}`);
             }
         }
     }

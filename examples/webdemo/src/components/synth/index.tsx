@@ -86,9 +86,9 @@ function Synth({ audioGraph }: { audioGraph: AudioGraph }) {
 
     const handleOutputEvent = (event: any) => {
         if (event.eventType === "scheduleOff") {
-            eventBus.publish("noteScheduledOffTriggered", { key: event.key as number, velocity: 0 });
+            eventBus.publish("midiNoteOff", { key: event.key as number, velocity: 0 });
         } else if (event.eventType === "scheduleOn") {
-            eventBus.publish("noteScheduledOnTriggered", { key: event.key as number, velocity: 0 });
+            eventBus.publish("midiNoteOn", { key: event.key as number, velocity: 0 });
         }
     }
 

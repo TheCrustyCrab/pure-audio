@@ -4,23 +4,26 @@ type NoteOnEvent = { key: number, velocity: number };
 type NoteOffEvent = { key: number, velocity: number };
 type NoteScheduleOnEvent = { time: number, key: number, velocity: number };
 type NoteScheduleOffEvent = { time: number, key: number, velocity: number };
-type NoteScheduledOnTriggeredEvent = { key: number, velocity: number };
-type NoteScheduledOffTriggeredEvent = { key: number, velocity: number };
 type HostTempoChangeEvent = { tempo: number };
 type HostStartPlayingEvent = void;
 type HostStopPlayingEvent = void;
 
-type Event = NoteOnEvent | NoteOffEvent | NoteScheduleOnEvent | NoteScheduleOffEvent | NoteScheduledOnTriggeredEvent | NoteScheduledOffTriggeredEvent | HostTempoChangeEvent | HostStartPlayingEvent | HostStopPlayingEvent;
+type Event = NoteOnEvent | NoteOffEvent | NoteScheduleOnEvent | NoteScheduleOffEvent | HostTempoChangeEvent | HostStartPlayingEvent | HostStopPlayingEvent;
 
 interface EventTypeMap {
+    // events that trigger audio
     "noteOn": NoteOnEvent,
     "noteOff": NoteOffEvent,
+
+    // events that trigger scheduled audio
     "noteScheduleOn": NoteScheduleOnEvent,
     "noteScheduleOff": NoteScheduleOffEvent,
-    "noteScheduledOnTriggered": NoteScheduledOnTriggeredEvent,
-    "noteScheduledOffTriggered": NoteScheduledOffTriggeredEvent,
-    "midiDeviceNoteOn": NoteOnEvent,
-    "midiDeviceNoteOff": NoteOffEvent,
+
+    // events that trigger the keyboard visual
+    "midiNoteOn": NoteOnEvent,
+    "midiNoteOff": NoteOffEvent,
+
+    // host events
     "hostTempoChange": HostTempoChangeEvent,
     "hostStartPlaying": HostStartPlayingEvent,
     "hostStopPlaying": HostStopPlayingEvent
@@ -35,10 +38,8 @@ export class EventBus {
             ["noteOff", []],
             ["noteScheduleOn", []],
             ["noteScheduleOff", []],
-            ["noteScheduledOnTriggered", []],
-            ["noteScheduledOffTriggered", []],
-            ["midiDeviceNoteOn", []],
-            ["midiDeviceNoteOff", []],
+            ["midiNoteOn", []],
+            ["midiNoteOff", []],
             ["hostTempoChange", []],
             ["hostStartPlaying", []],
             ["hostStopPlaying", []]

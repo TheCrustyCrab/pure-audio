@@ -39,18 +39,14 @@ function Keyboard({ minOctave, octaveCount, scale }: KeyboardProps) {
     const eventBus = useEventBus();
 
     useEffect(() => {
-        eventBus.subscribe("noteScheduledOffTriggered", handleNoteScheduledOffTriggered);
-        eventBus.subscribe("noteScheduledOnTriggered", handleNoteScheduledOnTriggered);
-        eventBus.subscribe("midiDeviceNoteOff", handleNoteScheduledOffTriggered);
-        eventBus.subscribe("midiDeviceNoteOn", handleNoteScheduledOnTriggered);
+        eventBus.subscribe("midiNoteOff", handleMidiNoteOff);
+        eventBus.subscribe("midiNoteOn", handleMidiNoteOn);
         window.addEventListener("resize", handleWindowResize);
         handleWindowResize();
 
         return () => {
-            eventBus.unsubscribe("noteScheduledOffTriggered", handleNoteScheduledOffTriggered);
-            eventBus.unsubscribe("noteScheduledOnTriggered", handleNoteScheduledOnTriggered);
-            eventBus.unsubscribe("midiDeviceNoteOff", handleNoteScheduledOffTriggered);
-            eventBus.unsubscribe("midiDeviceNoteOn", handleNoteScheduledOnTriggered);
+            eventBus.unsubscribe("midiNoteOff", handleMidiNoteOff);
+            eventBus.unsubscribe("midiNoteOn", handleMidiNoteOn);
             window.removeEventListener("resize", handleWindowResize);
         };
     }, []);
@@ -109,11 +105,11 @@ function Keyboard({ minOctave, octaveCount, scale }: KeyboardProps) {
         pointerActiveKey.current = newKeyNumber;
     }, [pointerChordMode]);
 
-    const handleNoteScheduledOffTriggered = ({ key }: { key: number }) => {
+    const handleMidiNoteOff = ({ key }: { key: number }) => {
         setActiveNotes(current => current.filter(activeNote => activeNote !== key));
     }
 
-    const handleNoteScheduledOnTriggered = ({ key }: { key: number }) => {
+    const handleMidiNoteOn = ({ key }: { key: number }) => {
         setActiveNotes(current => [...current, key]);
     }
 

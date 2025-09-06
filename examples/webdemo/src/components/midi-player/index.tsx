@@ -47,7 +47,7 @@ function MidiPlayer({ tempo, audioGraph, midiFile }: MidiPlayerProps) {
         }
 
         return loadedMidiTracks.midiTracks[selectedMidiTrackIndex!];
-    }, [loadedMidiTracks, selectedMidiTrackIndex]);
+    }, [midiFile, loadedMidiTracks, selectedMidiTrackIndex]);
 
     const [playMidiStartTime, setPlayMidiStartTime] = useState<number | null>(null);
     const eventIterator = useRef<ArrayIterator<SimpleMidiEvent>>(null);
