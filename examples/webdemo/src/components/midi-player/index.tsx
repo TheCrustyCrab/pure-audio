@@ -5,6 +5,9 @@ import useEventBus from "../../hooks/useEventBus";
 import { AudioGraph } from "../../audio-graph";
 import BeatBarIndicator from "../beat-bar-indicator";
 import ScheduleWorker from "./scheduleWorker?worker";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faFileImport, faPause, faPlay, faStop } from "@fortawesome/free-solid-svg-icons";
+import MenuBarFaIcon from "../menu-bar-fa-icon";
 
 // https://web.dev/articles/audio-scheduling
 const intervalMillis = 25;
@@ -172,13 +175,13 @@ function MidiPlayer({ tempo, audioGraph, midiFile }: MidiPlayerProps) {
     return (
         <>
             <div className="menu-bar-group-item">
-                MIDI file:
+                <MenuBarFaIcon icon={faFileImport} label="midi" />
                 {
                     midiFile
                         ? loadedMidiTracks.error
                             ? `Failed to load ${midiFile.name}: ${loadedMidiTracks.error}`
                             : midiFile.name
-                        : "Drag and drop"
+                        : "none"
                 }
             </div>
             {
@@ -202,16 +205,16 @@ function MidiPlayer({ tempo, audioGraph, midiFile }: MidiPlayerProps) {
                 !selectedMidiTrack || !selectedMidiTrack.timeSignature
                     ? null
                     : <div className="menu-bar-group-item">
-                        <BeatBarIndicator currentBeat={elapsedTimeInBeatsFloored % selectedMidiTrack.timeSignature.numerator} 
+                        <BeatBarIndicator currentBeat={elapsedTimeInBeatsFloored % selectedMidiTrack.timeSignature.numerator}
                             beatsPerBar={selectedMidiTrack.timeSignature.numerator} />
                     </div>
             }
             <div className="menu-bar-group-item">
                 {playMidiStartTime === null
-                    ? <button onClick={playMidi} disabled={selectedMidiTrack === null}>&#9654;&#65039;</button>
-                    : <button onClick={pauseMidi} disabled={selectedMidiTrack === null}>&#9208;&#65039;</button>
+                    ? <button onClick={playMidi} disabled={selectedMidiTrack === null}><FontAwesomeIcon icon={faPlay} /></button>
+                    : <button onClick={pauseMidi} disabled={selectedMidiTrack === null}><FontAwesomeIcon icon={faPause} /></button>
                 }
-                <button onClick={stopMidi} disabled={selectedMidiTrack === null}>&#9209;&#65039;</button>
+                <button onClick={stopMidi} disabled={selectedMidiTrack === null}><FontAwesomeIcon icon={faStop} /></button>
             </div>
             <div className="menu-bar-group-item">
                 {elapsedTimeInBeatsFloored + 1}

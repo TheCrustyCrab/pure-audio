@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { PureAudioWorkletNode } from "../../assets/oscillator/oscillator";
 import useEventBus from "../../hooks/useEventBus";
 import { AudioGraph } from "../../audio-graph";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faMinus, faPlus } from "@fortawesome/free-solid-svg-icons";
 
 const effectModules = {
     "Freeverb": {
@@ -109,7 +111,7 @@ function EffectRack({ audioGraph, tempo }: { audioGraph: AudioGraph, tempo: numb
                         )
                     }
                 </select>
-                <button onClick={handleAddEffectEntryClick}>&#10133;</button>
+                <button onClick={handleAddEffectEntryClick}><FontAwesomeIcon icon={faPlus} /></button>
             </div>
             <div>
                 <hr />
@@ -120,7 +122,7 @@ function EffectRack({ audioGraph, tempo }: { audioGraph: AudioGraph, tempo: numb
                         <div key={effectEntry.id} className="workspace-effects-nodes-item">
                             <div className="workspace-effects-nodes-item-header">
                                 {effectEntry.type}
-                                <button onClick={() => handleRemoveEffectEntryClick(index)}>&#10134;</button>
+                                <button onClick={() => handleRemoveEffectEntryClick(index)}><FontAwesomeIcon icon={faMinus} /></button>
                             </div>
                             <hr />
                             <div ref={el => {

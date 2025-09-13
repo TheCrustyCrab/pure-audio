@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import useEventBus from "../../hooks/useEventBus";
+import { faSliders } from "@fortawesome/free-solid-svg-icons";
+import MenuBarFaIcon from "../menu-bar-fa-icon";
 
 enum MidiStatus {
     NoteOff = 0b1000,
@@ -80,14 +82,14 @@ function MidiDeviceSelect() {
     }
 
     return (
-        <div>
-            MIDI device:
+        <>
+            <MenuBarFaIcon icon={faSliders} label="device" />
             <select name="midiDevice" onChange={(evt) => handleSelectMidiInput(parseInt(evt.target.value))}>
                 {
                     midiInputNames.map((name, i) => <option key={i} value={i}>{name}</option>)
                 }
             </select>
-        </div>
+        </>
     );
 }
 

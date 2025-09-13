@@ -11,14 +11,12 @@
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+
+    user-select: none;
 }
 
 body {
     margin: 0;
-}
-
-label {
-    user-select: none;
 }
 
 .root {
@@ -62,9 +60,13 @@ label {
 }
 
 .menu-bar-group-item {
-    border-left: 1px solid white;
+    display: flex;
     border-right: 1px solid white;
     padding: 0 5px;
+}
+
+.menu-bar-group-item:last-child {
+    border-right: none;
 }
 
 .tempo-input {
@@ -94,6 +96,7 @@ label {
 
 .workspace-effects-nodes {
     display: flex;
+    justify-content: center;
     overflow: hidden;
 }
 

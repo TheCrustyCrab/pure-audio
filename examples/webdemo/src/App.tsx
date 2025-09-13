@@ -8,6 +8,8 @@ import useEventBus from "./hooks/useEventBus";
 import FileDropzone from "./components/file-dropzone";
 import MidiPlayer from "./components/midi-player";
 import EffectRack from "./components/effect-rack";
+import { faClock } from "@fortawesome/free-solid-svg-icons";
+import MenuBarFaIcon from "./components/menu-bar-fa-icon";
 
 function App() {
     const [tempo, setTempo] = useState<number>(130);
@@ -37,7 +39,8 @@ function App() {
                     </div>
                     <div className="menu-bar-group2">
                         <div className="menu-bar-group-item">
-                            Tempo <input name="tempo" type="number" className="tempo-input" min={60} max={150} defaultValue={130} onChange={handleTempoChange}></input> bpm
+                            <MenuBarFaIcon icon={faClock} label="bpm"/>
+                            <input name="tempo" type="number" className="tempo-input" min={60} max={150} defaultValue={130} onChange={handleTempoChange}></input>
                         </div>
                         {
                             audioGraph === null ? null : <MidiPlayer audioGraph={audioGraph} midiFile={midiFile} tempo={tempo} />
