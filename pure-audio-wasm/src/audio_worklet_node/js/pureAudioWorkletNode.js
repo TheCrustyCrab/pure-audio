@@ -1,8 +1,8 @@
 export let PureAudioWorkletNode;
-const root = (() => eval)()('this');
+const root = Function("return this")(); 
 // AudioWorkletNode is available on the main thread but not on the audio thread
 // Assign Dummy class to PureAudioWorkletNode to avoid an import error from the audio thread
-if (root.AudioWorkletNode === undefined) {
+if (root?.AudioWorkletNode === undefined) {
     PureAudioWorkletNode = class Dummy { };
 } else {
     let finalizationRegistry;

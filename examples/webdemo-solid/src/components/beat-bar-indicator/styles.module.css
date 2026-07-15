@@ -1,0 +1,15 @@
+.beat-bar-indicator {
+    display: flex;
+}
+
+.beat {
+    padding: 0 2px;
+}
+
+.rectangle {
+    fill: white;
+}
+
+.on {
+    fill: lightblue;
+}

@@ -25,55 +25,55 @@ jobs:
               run: cargo binstall wasm-bindgen-cli@0.2.100 --no-confirm
 
             - name: Build midi-file-parser
-              working-directory: examples/webdemo/midi-file-parser
+              working-directory: examples/midi-file-parser
               run: |
                 cargo build --target wasm32-unknown-unknown --release
-                wasm-bindgen ../../../target/wasm32-unknown-unknown/release/midi_file_parser.wasm --target web --out-dir ../src/assets/midi-file-parser
+                wasm-bindgen ../../target/wasm32-unknown-unknown/release/midi_file_parser.wasm --target web --out-dir ../webdemo-solid/src/assets/midi-file-parser
 
             - name: Build freeverb example
               working-directory: examples/freeverb
               run: |
                 cargo build --target wasm32-unknown-unknown --release
-                wasm-bindgen ../../target/wasm32-unknown-unknown/release/freeverb.wasm --target web --out-dir ../webdemo/src/assets/freeverb
+                wasm-bindgen ../../target/wasm32-unknown-unknown/release/freeverb.wasm --target web --out-dir ../webdemo-solid/src/assets/freeverb
 
             - name: Build gain example
               working-directory: examples/gain
               run: |
                 cargo build --target wasm32-unknown-unknown --release
-                wasm-bindgen ../../target/wasm32-unknown-unknown/release/gain.wasm --target web --out-dir ../webdemo/src/assets/gain
+                wasm-bindgen ../../target/wasm32-unknown-unknown/release/gain.wasm --target web --out-dir ../webdemo-solid/src/assets/gain
 
             - name: Build oscillator example
               working-directory: examples/oscillator
               run: |
                 cargo build --target wasm32-unknown-unknown --release
-                wasm-bindgen ../../target/wasm32-unknown-unknown/release/oscillator.wasm --target web --out-dir ../webdemo/src/assets/oscillator
+                wasm-bindgen ../../target/wasm32-unknown-unknown/release/oscillator.wasm --target web --out-dir ../webdemo-solid/src/assets/oscillator
 
             - name: Build pan example
               working-directory: examples/pan
               run: |
                 cargo build --target wasm32-unknown-unknown --release
-                wasm-bindgen ../../target/wasm32-unknown-unknown/release/pan.wasm --target web --out-dir ../webdemo/src/assets/pan
+                wasm-bindgen ../../target/wasm32-unknown-unknown/release/pan.wasm --target web --out-dir ../webdemo-solid/src/assets/pan
 
             - name: Build surge-synth-saw-demo example
               working-directory: examples/surge-synth-saw-demo
               run: |
                 cargo build --target wasm32-unknown-unknown --release
-                wasm-bindgen ../../target/wasm32-unknown-unknown/release/surge_synth_saw_demo.wasm --target web --out-dir ../webdemo/src/assets/surge-synth-saw-demo
+                wasm-bindgen ../../target/wasm32-unknown-unknown/release/surge_synth_saw_demo.wasm --target web --out-dir ../webdemo-solid/src/assets/surge-synth-saw-demo
 
             - name: Build tremolo example
               working-directory: examples/tremolo
               run: |
                 cargo build --target wasm32-unknown-unknown --release
-                wasm-bindgen ../../target/wasm32-unknown-unknown/release/tremolo.wasm --target web --out-dir ../webdemo/src/assets/tremolo
+                wasm-bindgen ../../target/wasm32-unknown-unknown/release/tremolo.wasm --target web --out-dir ../webdemo-solid/src/assets/tremolo
             
-            - name: Build webdemo
+            - name: Build webdemo-solid
               run: npm install && npm run build
-              working-directory: examples/webdemo
+              working-directory: examples/webdemo-solid
 
             - uses: actions/upload-artifact@main
               with:
                 name: dist
-                path: examples/webdemo/dist
+                path: examples/webdemo-solid/dist
     
     deploy:
         runs-on: ubuntu-latest

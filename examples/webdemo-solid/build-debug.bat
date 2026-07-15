@@ -11,4 +11,4 @@ wasm-bindgen ../../target/wasm32-unknown-unknown/debug/surge_synth_saw_demo.wasm
 cargo build --manifest-path ../tremolo/Cargo.toml --target wasm32-unknown-unknown
 wasm-bindgen ../../target/wasm32-unknown-unknown/debug/tremolo.wasm --target web --out-dir src/assets/tremolo --keep-debug
 cargo build --manifest-path ../midi-file-parser/Cargo.toml --target wasm32-unknown-unknown
-wasm-bindgen ../../../target/wasm32-unknown-unknown/debug/midi_file_parser.wasm --target web --out-dir src/assets/midi-file-parser --keep-debug
+wasm-bindgen ../../target/wasm32-unknown-unknown/debug/midi_file_parser.wasm --target web --out-dir src/assets/midi-file-parser --keep-debug
