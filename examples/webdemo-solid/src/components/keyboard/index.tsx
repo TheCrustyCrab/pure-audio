@@ -38,11 +38,12 @@ export function Keyboard(props: KeyboardProps) {
     const [showKeyLabels, setShowKeyLabels] = createSignal(false);
     const [canScrollLeft, setCanScrollLeft] = createSignal(false);
     const [canScrollRight, setCanScrollRight] = createSignal(false);
-    const [activeNotes, setActiveNotes] = createStore<number[]>([]);
+    const [activeNotes, setActiveNotes] = createStore<number[]>([]); // notes triggered by any source (pointer, midi device, midi player)
 
     // untracked
     let pointerActiveKey: number | null = null;
     let octavesDivRef!: HTMLDivElement;
+    const pointerTriggeredNotes: number[] = []; // notes triggered by pointer
 
     onMount(() => {
         props.eventBus.subscribe("midiNoteOff", handleMidiNoteOff);
@@ -63,7 +64,7 @@ export function Keyboard(props: KeyboardProps) {
 
     const handleNoteOn = (key: number) => {
         pointerActiveKey = key;
-        activateNotes(key);
+        activatePointerTriggeredNotes(key);
     };
 
     const handleNoteEnter = (key: number) => {
@@ -71,38 +72,37 @@ export function Keyboard(props: KeyboardProps) {
             return;
 
         pointerActiveKey = key;
-        activateNotes(key);
+        activatePointerTriggeredNotes(key);
     }
 
     const handleNoteLeave = () => {
         if (pointerActiveKey == null)
             return;
 
-        stopAllNotes();
+        stopAllPointerTriggeredNotes();
     }
 
     const handlePointerUpOrCancel = (_evt: PointerEvent) => {
         pointerActiveKey = null;
-        stopAllNotes();
+        stopAllPointerTriggeredNotes();
     };
 
-    const activateNotes = (key: number) => {
+    const activatePointerTriggeredNotes = (key: number) => {
         const keyOffsets = chordKeyOffsets[pointerChordMode()];
         const keys = keyOffsets.map(offset => key + offset);
 
         setActiveNotes(produce(current => {
             current.push(...keys);
         }));
+        pointerTriggeredNotes.push(...keys);
 
         keys.forEach(key => props.eventBus.publish("noteOn", { key, velocity: 127 }));
     };
 
-    // todo: keep separate array of midi notes to avoid interference with midi playback
-    const stopAllNotes = () => {
-        setActiveNotes(produce(currentNotes => {
-            currentNotes.forEach(note => props.eventBus.publish("noteOff", { key: note, velocity: 127 }));
-            currentNotes.splice(0);
-        }));
+    const stopAllPointerTriggeredNotes = () => {
+        setActiveNotes(current => current.filter(activeNote => !pointerTriggeredNotes.includes(activeNote)));
+        pointerTriggeredNotes.forEach(note => props.eventBus.publish("noteOff", { key: note, velocity: 127 }));
+        pointerTriggeredNotes.splice(0);
     };
 
     const handleMidiNoteOff = ({ key }: { key: number }) => {
